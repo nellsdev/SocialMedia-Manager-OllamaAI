@@ -186,28 +186,14 @@ async def whatsapp_webhook(
         goals=profile_data.get("goals"),
     )
 
-    # Use IdeaBankAgent to process the message
+    # Use IdeaBankAgent to process the message (persists raw idea first, then enriches)
     agent = IdeaBankAgent(profile=profile_strategy)
-    idea = await agent.process_whatsapp_message(
+    result = await agent.process_whatsapp_message(
         text=body.message,
         media=body.media,
+        from_number=body.from_number if hasattr(body, 'from_number') else None,
     )
 
-    # Persist to database
-    now = datetime.now(timezone.utc).isoformat()
-    idea_data = {
-        "id": str(uuid.uuid4()),
-        "profile_id": profile_id,
-        "title": idea.title,
-        "description": idea.description,
-        "suggested_format": idea.suggested_format,
-        "content_pillar": idea.content_pillar,
-        "source": "whatsapp",
-        "media_refs": idea.media_refs or [],
-        "status": "idea",
-        "created_at": now,
-    }
-    supabase.table("content_ideas").insert(idea_data).execute()
-    resp = supabase.table("content_ideas").select("*").eq("id", idea_data["id"]).single().execute()
-
+    # Fetch the persisted idea
+    resp = supabase.table("content_ideas").select("*").eq("id", result["id"]).single().execute()
     return IdeaResponse(**resp.data)

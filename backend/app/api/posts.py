@@ -75,7 +75,7 @@ async def create_post(body: PostCreate, supabase: Client = Depends(_get_supabase
         "hashtags": body.hashtags or [],
         "status": "draft",
         "scheduled_for": body.scheduled_for.isoformat() if body.scheduled_for else None,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
     supabase.table("content_posts").insert(post_data).execute()

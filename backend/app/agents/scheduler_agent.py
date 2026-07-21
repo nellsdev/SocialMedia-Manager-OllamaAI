@@ -197,18 +197,38 @@ class SchedulerAgent(BaseAgent):
             caption=post.get("caption", ""),
         )
 
-        # Update the post status based on result
-        update_data = {"status": result.status}
-        if result.platform_post_id:
-            update_data["platform_post_id"] = result.platform_post_id
-        if result.platform_permalink:
-            update_data["platform_permalink"] = result.platform_permalink
-        if result.failure_reason:
-            update_data["failure_reason"] = result.failure_reason
+        # Update the post status based on result — each DB call wrapped individually
+        # so a DB failure after a successful Instagram publish doesn't cause
+        # duplicate retries (the post IS published, we just can't track it).
         if result.status == "published":
-            update_data["published_at"] = datetime.now(timezone.utc).isoformat()
+            try:
+                supabase.table("content_posts").update({
+                    "status": "published",
+                    "published_at": datetime.now(timezone.utc).isoformat(),
+                    "failure_reason": None,
+                    "platform_post_id": result.platform_post_id,
+                    "platform_permalink": result.platform_permalink,
+                }).eq("id", post_id).execute()
+            except Exception as e:
+                logger.error("CRITICAL: Post %s published on Instagram but DB update failed: %s", post_id, e)
+                # Don't raise — the post IS published, we just can't track it
+        else:
+            try:
+                update_data = {"status": result.status}
+                if result.failure_reason:
+                    update_data["failure_reason"] = result.failure_reason
+                supabase.table("content_posts").update(update_data).eq("id", post_id).execute()
+            except Exception as e:
+                logger.warning("Failed to update post status for post %s: %s", post_id, e)
 
-        supabase.table("content_posts").update(update_data).eq("id", post_id).execute()
+        # Update scheduler job status
+        try:
+            supabase.table("scheduler_jobs").update({
+                "status": "completed" if result.status == "published" else "failed",
+                "executed_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("post_id", post_id).eq("status", "scheduled").execute()
+        except Exception as e:
+            logger.warning("Failed to update scheduler job status for post %s: %s", post_id, e)
 
         return result
 

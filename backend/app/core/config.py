@@ -16,7 +16,7 @@ class Settings(BaseSettings):
 
     # --- App ---
     APP_NAME: str = "Social Media Manager"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # --- Supabase ---
     SUPABASE_URL: str = "http://localhost:54321"

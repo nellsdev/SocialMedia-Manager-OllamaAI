@@ -29,15 +29,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
-# Shared orchestrator instance
-_orchestrator: Orchestrator | None = None
-
 
 def _get_orchestrator() -> Orchestrator:
-    global _orchestrator
-    if _orchestrator is None:
-        _orchestrator = Orchestrator()
-    return _orchestrator
+    """Create a fresh orchestrator per request to avoid profile state leakage."""
+    return Orchestrator()
 
 
 def _get_supabase() -> Client:
@@ -80,7 +75,8 @@ async def suggest_captions(
     result = await orchestrator.run_task(task)
 
     if result.error:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result.error)
+        logger.error("Agent task failed (captions): %s", result.error)
+        raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
 
     options = result.data or []
     # Ensure CaptionOption objects
@@ -112,7 +108,8 @@ async def suggest_hashtags(
     result = await orchestrator.run_task(task)
 
     if result.error:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result.error)
+        logger.error("Agent task failed (hashtags): %s", result.error)
+        raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
 
     hashtags = result.data or []
     if isinstance(hashtags, list) and all(isinstance(h, str) for h in hashtags):
@@ -138,7 +135,8 @@ async def suggest_format(
     result = await orchestrator.run_task(task)
 
     if result.error:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result.error)
+        logger.error("Agent task failed (format): %s", result.error)
+        raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
 
     data = result.data
     if isinstance(data, dict):
@@ -163,7 +161,8 @@ async def generate_weekly_ideas(
     result = await orchestrator.run_task(task)
 
     if result.error:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=result.error)
+        logger.error("Agent task failed (weekly-ideas): %s", result.error)
+        raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
 
     ideas = result.data or []
     parsed = []

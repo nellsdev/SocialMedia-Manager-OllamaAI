@@ -6,6 +6,7 @@ with Fernet before storage.
 
 import secrets
 import uuid
+import logging
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 
@@ -23,6 +24,8 @@ from app.schemas.social import (
     InstagramConnectResponse,
     InstagramStatusResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/social", tags=["social"])
 
@@ -98,9 +101,10 @@ async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = 
             },
         )
         if token_resp.status_code != 200:
+            logger.error("Instagram code exchange failed: %s", token_resp.text)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to exchange code: {token_resp.text}",
+                detail="Failed to complete Instagram authentication. Please try again.",
             )
         token_data = token_resp.json()
         short_lived_token = token_data.get("access_token")
@@ -117,9 +121,10 @@ async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = 
             },
         )
         if long_resp.status_code != 200:
+            logger.error("Instagram long-lived token exchange failed: %s", long_resp.text)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to exchange for long-lived token: {long_resp.text}",
+                detail="Failed to complete Instagram authentication. Please try again.",
             )
         long_data = long_resp.json()
         long_token = long_data.get("access_token")
@@ -132,9 +137,10 @@ async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = 
             params={"access_token": long_token},
         )
         if pages_resp.status_code != 200:
+            logger.error("Failed to fetch Facebook pages: %s", pages_resp.text)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to fetch pages: {pages_resp.text}",
+                detail="Failed to fetch Facebook pages. Please try again.",
             )
         pages_data = pages_resp.json()
         if not pages_data.get("data"):
@@ -168,6 +174,7 @@ async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = 
         "account_id": ig_business_id,
         "access_token": encrypted_token,
         "is_active": True,
+        "token_expires_at": (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat() if expires_in else None,
     }
 
     # Check if account already exists

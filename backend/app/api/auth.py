@@ -3,6 +3,8 @@
 All routes rely on Supabase Auth for credential handling and JWT issuance.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from supabase import Client
 
@@ -16,6 +18,8 @@ from app.schemas.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+logger = logging.getLogger(__name__)
 
 
 def _get_supabase() -> Client:
@@ -32,15 +36,15 @@ async def register(body: RegisterRequest, supabase: Client = Depends(_get_supaba
             message="Account created. Check your email to verify.",
         )
     except Exception as exc:
-        error_detail = str(exc)
-        if "already registered" in error_detail.lower():
+        logger.exception("Registration failed")
+        if "already registered" in str(exc).lower():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Email already registered",
             )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=error_detail,
+            detail="Registration failed. Please try again.",
         )
 
 

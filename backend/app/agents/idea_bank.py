@@ -44,25 +44,51 @@ class IdeaBankAgent(BaseAgent):
         self,
         text: str,
         media: list[str] | None = None,
-    ) -> Idea:
+        from_number: str | None = None,
+    ) -> dict:
         """Process an incoming WhatsApp message into a structured Idea.
 
-        Performs auto-tagging and format suggestion on the message text.
+        Persists the raw idea to DB FIRST (never lose user input), then
+        enriches with AI tagging and format suggestion (best-effort).
         """
-        pillar = await self.auto_tag_pillar(text)
-        format_rec = await self.suggest_format_from_text(text)
+        from app.core.database import get_supabase_service_client
+        supabase = get_supabase_service_client()
 
-        # Use the first line or first 80 chars as title
-        title = text.strip().split("\n")[0][:80] if text.strip() else "WhatsApp Idea"
+        # 1. Persist raw idea FIRST (never lose user input)
+        idea_data = {
+            "profile_id": self._profile.profile_id if self._profile else None,
+            "title": text.strip().split("\n")[0][:80] if text.strip() else "WhatsApp Idea",
+            "description": text,
+            "source": "whatsapp",
+            "content_pillar": None,
+            "suggested_format": None,
+            "media_refs": media or [],
+            "status": "idea",
+        }
+        try:
+            resp = supabase.table("content_ideas").insert(idea_data).execute()
+            idea_id = resp.data[0]["id"]
+        except Exception as e:
+            logger.error("Failed to persist WhatsApp idea: %s", e)
+            raise
 
-        return Idea(
-            title=title,
-            description=text,
-            suggested_format=format_rec.format if format_rec else None,
-            content_pillar=pillar,
-            source="whatsapp",
-            media_refs=media or [],
-        )
+        # 2. Enrich with AI (best-effort, failures don't lose the idea)
+        pillar = None
+        try:
+            pillar = await self.auto_tag_pillar(text)
+            if pillar:
+                supabase.table("content_ideas").update({"content_pillar": pillar}).eq("id", idea_id).execute()
+        except Exception as e:
+            logger.warning("Auto-tag failed for idea %s: %s", idea_id, e)
+
+        try:
+            format_rec = await self.suggest_format_from_text(text)
+            if format_rec:
+                supabase.table("content_ideas").update({"suggested_format": format_rec.format}).eq("id", idea_id).execute()
+        except Exception as e:
+            logger.warning("Format suggestion failed for idea %s: %s", idea_id, e)
+
+        return {"id": idea_id, "text": text, "pillar": pillar}
 
     async def auto_tag_pillar(self, description: str) -> str | None:
         """Classify a description into one of the profile's content pillars.
