@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Social Media Manager — MVP Mockups</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f3f4f6; }
+    .screen-nav { position: fixed; top: 0; left: 0; right: 0; z-index: 50; }
+    .screen-frame { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 24px rgba(0,0,0,.04); overflow: hidden; margin: 0 auto; }
+    /* device frame simulation */
+    .device { max-width: 1280px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1); overflow: hidden; }
+    .sidebar-bg { background: linear-gradient(180deg, #6C63FF 0%, #5A52E0 100%); }
+    .accent { color: #FF6584; }
+    .badge-pending { @apply text-xs px-2 py-0.5 rounded-full font-medium; background: #FEF3C7; color: #92400E; }
+    .badge-published { @apply text-xs px-2 py-0.5 rounded-full font-medium; background: #D1FAE5; color: #065F46; }
+    .badge-draft { @apply text-xs px-2 py-0.5 rounded-full font-medium; background: #E0E7FF; color: #3730A3; }
+    .badge-scheduled { @apply text-xs px-2 py-0.5 rounded-full font-medium; background: #DBEAFE; color: #1E40AF; }
+    .screen-section { scroll-margin-top: 80px; }
+    .dot-active { width: 8px; height: 8px; background: #6C63FF; border-radius: 50%; display: inline-block; }
+    .dot-inactive { width: 8px; height: 8px; background: #D1D5DB; border-radius: 50%; display: inline-block; }
+    .archetype-card { border: 2px solid transparent; transition: all .2s; cursor: pointer; }
+    .archetype-card:hover, .archetype-card.selected { border-color: #6C63FF; background: #EEF2FF; }
+    .drag-placeholder { border: 2px dashed #6C63FF; border-radius: 8px; background: #EEF2FF; min-height: 80px; }
+  </style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="screen-nav bg-white border-b border-gray-200 px-6 py-3 flex items-center gap-4 overflow-x-auto text-sm">
+  <span class="font-bold text-indigo-600 mr-2 whitespace-nowrap">📱 MVP Screens</span>
+  <a href="#screen-login" class="text-gray-600 hover:text-indigo-600 whitespace-nowrap">Login</a>
+  <a href="#screen-onboarding" class="text-gray-600 hover:text-indigo-600 whitespace-nowrap">Onboarding</a>
+  <a href="#screen-dashboard" class="text-gray-600 hover:text-indigo-600 whitespace-nowrap">Dashboard</a>
+  <a href="#screen-grid" class="text-gray-600 hover:text-indigo-600 whitespace-nowrap">Content Grid</a>
+  <a href="#screen-ideas" class="text-gray-600 hover:text-indigo-600 whitespace-nowrap">Idea Bank</a>
+  <a href="#screen-editor" class="text-gray-600 hover:text-indigo-600 whitespace-nowrap">Post Editor</a>
+  <a href="#screen-settings" class="text-gray-600 hover:text-indigo-600 whitespace-nowrap">Settings</a>
+</nav>
+
+<div class="pt-16 pb-16 px-4 space-y-16 max-w-7xl mx-auto">
+
+  <!-- ============= SCREEN 1: LOGIN ============= -->
+  <section id="screen-login" class="screen-section">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-xs font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded">01</span>
+      <h2 class="text-xl font-bold text-gray-900">Login / Register</h2>
+    </div>
+    <div class="device">
+      <div class="flex min-h-[600px]">
+        <!-- Left: branding -->
+        <div class="sidebar-bg hidden md:flex flex-col justify-center items-center text-white p-12 w-1/2">
+          <div class="text-5xl mb-4">📱</div>
+          <h1 class="text-3xl font-bold mb-2">ContentFlow</h1>
+          <p class="text-indigo-200 text-center max-w-sm text-sm leading-relaxed">
+            Your AI-powered content strategy coach. Plan, create, and publish with purpose.
+          </p>
+          <div class="mt-12 flex gap-2">
+            <span class="w-2 h-2 rounded-full bg-white/40"></span>
+            <span class="w-2 h-2 rounded-full bg-white"></span>
+            <span class="w-2 h-2 rounded-full bg-white/40"></span>
+          </div>
+        </div>
+        <!-- Right: form -->
+        <div class="flex flex-col justify-center p-10 w-full md:w-1/2">
+          <div class="max-w-sm mx-auto w-full">
+            <h2 class="text-2xl font-bold text-gray-900 mb-1">Welcome back</h2>
+            <p class="text-sm text-gray-500 mb-8">Sign in to your account to continue</p>
+            <form class="space-y-5">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                <input type="email" placeholder="you@example.com" class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Password</label>
+                <input type="password" placeholder="••••••••" class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <label class="flex items-center gap-2 text-gray-600"><input type="checkbox" checked class="rounded" /> Remember me</label>
+                <a href="#" class="text-indigo-600 font-medium hover:underline">Forgot password?</a>
+              </div>
+              <button type="submit" class="w-full sidebar-bg text-white py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition">Sign in</button>
+            </form>
+            <p class="text-center text-sm text-gray-500 mt-8">
+              Don't have an account? <a href="#" class="text-indigo-600 font-semibold hover:underline">Sign up</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= SCREEN 2: ONBOARDING ============= -->
+  <section id="screen-onboarding" class="screen-section">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-xs font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded">02</span>
+      <h2 class="text-xl font-bold text-gray-900">Onboarding — Archetype Selection</h2>
+    </div>
+    <div class="device p-8">
+      <!-- Stepper -->
+      <div class="flex items-center justify-center gap-2 mb-10 text-sm">
+        <span class="bg-indigo-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">1</span><span class="text-indigo-600 font-medium">Archetype</span>
+        <span class="w-12 h-px bg-gray-300"></span>
+        <span class="bg-gray-200 text-gray-500 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">2</span><span class="text-gray-400">Voice</span>
+        <span class="w-12 h-px bg-gray-300"></span>
+        <span class="bg-gray-200 text-gray-500 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">3</span><span class="text-gray-400">Pillars</span>
+        <span class="w-12 h-px bg-gray-300"></span>
+        <span class="bg-gray-200 text-gray-500 w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs">4</span><span class="text-gray-400">Goals</span>
+      </div>
+
+      <div class="max-w-4xl mx-auto">
+        <h2 class="text-2xl font-bold text-center text-gray-900 mb-2">What type of creator are you?</h2>
+        <p class="text-gray-500 text-center text-sm mb-8">This helps us tailor content suggestions and metrics to YOUR goals.</p>
+        <div class="grid md:grid-cols-3 gap-4">
+          <!-- Archetype 1 -->
+          <div class="archetype-card selected rounded-xl p-5 bg-white border-2 border-indigo-500 shadow-sm">
+            <div class="text-3xl mb-3">🌟</div>
+            <h3 class="font-bold text-gray-900 mb-1">Aspiring Influencer</h3>
+            <p class="text-xs text-gray-500">Building a following, growing engagement, finding your niche voice.</p>
+            <div class="mt-4 pt-3 border-t border-gray-100">
+              <div class="flex items-center gap-1 text-xs text-gray-400"><span class="dot-active"></span> Foco: followers + reach</div>
+            </div>
+          </div>
+          <!-- Archetype 2 -->
+          <div class="archetype-card rounded-xl p-5 border-2 border-transparent hover:border-indigo-300 bg-white shadow-sm">
+            <div class="text-3xl mb-3">💼</div>
+            <h3 class="font-bold text-gray-900 mb-1">Authority Professional</h3>
+            <p class="text-xs text-gray-500">Establishing expertise, building credibility, sharing industry insights.</p>
+            <div class="mt-4 pt-3 border-t border-gray-100">
+              <div class="flex items-center gap-1 text-xs text-gray-400"><span class="dot-inactive"></span> Foco: engagement quality</div>
+            </div>
+          </div>
+          <!-- Archetype 3 -->
+          <div class="archetype-card rounded-xl p-5 border-2 border-transparent hover:border-indigo-300 bg-white shadow-sm">
+            <div class="text-3xl mb-3">❤️</div>
+            <h3 class="font-bold text-gray-900 mb-1">Personal Sharing</h3>
+            <p class="text-xs text-gray-500">Sharing life moments, connecting with community, authentic expression.</p>
+            <div class="mt-4 pt-3 border-t border-gray-100">
+              <div class="flex items-center gap-1 text-xs text-gray-400"><span class="dot-inactive"></span> Foco: community connection</div>
+            </div>
+          </div>
+        </div>
+        <div class="grid md:grid-cols-2 gap-4 mt-4">
+          <div class="archetype-card rounded-xl p-5 border-2 border-transparent hover:border-indigo-300 bg-white shadow-sm">
+            <div class="text-3xl mb-3">🏪</div>
+            <h3 class="font-bold text-gray-900 mb-1">Business Owner</h3>
+            <p class="text-xs text-gray-500">Driving conversions, showcasing products, building brand loyalty.</p>
+            <div class="mt-4 pt-3 border-t border-gray-100">
+              <div class="flex items-center gap-1 text-xs text-gray-400"><span class="dot-inactive"></span> Foco: conversions + sales</div>
+            </div>
+          </div>
+          <div class="archetype-card rounded-xl p-5 border-2 border-transparent hover:border-indigo-300 bg-white shadow-sm">
+            <div class="text-3xl mb-3">🤝</div>
+            <h3 class="font-bold text-gray-900 mb-1">Community Builder</h3>
+            <p class="text-xs text-gray-500">Bringing people together, fostering discussions, shared experiences.</p>
+            <div class="mt-4 pt-3 border-t border-gray-100">
+              <div class="flex items-center gap-1 text-xs text-gray-400"><span class="dot-inactive"></span> Foco: participation + retention</div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-8 text-center">
+          <button class="sidebar-bg text-white px-10 py-2.5 rounded-lg font-semibold text-sm hover:opacity-90 transition">Continue →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= SCREEN 3: DASHBOARD ============= -->
+  <section id="screen-dashboard" class="screen-section">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-xs font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded">03</span>
+      <h2 class="text-xl font-bold text-gray-900">Dashboard — KPIs & Metrics</h2>
+    </div>
+    <div class="device">
+      <!-- Top bar -->
+      <div class="flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white">
+        <div class="flex items-center gap-4">
+          <span class="font-bold text-indigo-600 text-lg">ContentFlow</span>
+          <span class="text-sm text-gray-500">Dashboard</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-sm text-gray-500">🎯 Aspiring Influencer</span>
+          <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">NR</div>
+        </div>
+      </div>
+      <div class="flex">
+        <!-- Sidebar -->
+        <div class="sidebar-bg w-56 min-h-[500px] p-4 text-white hidden md:block">
+          <div class="space-y-1">
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/15 font-medium text-sm">📊 Dashboard</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📅 Content Grid</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">💡 Idea Bank</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">✍️ Posts</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">⚙️ Settings</div>
+          </div>
+        </div>
+        <!-- Content -->
+        <div class="flex-1 p-6 bg-gray-50">
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Followers</p>
+              <p class="text-2xl font-bold text-gray-900 mt-1">12,458</p>
+              <p class="text-xs text-green-600 font-medium mt-1">↑ +12.4%</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Reach</p>
+              <p class="text-2xl font-bold text-gray-900 mt-1">45.2K</p>
+              <p class="text-xs text-green-600 font-medium mt-1">↑ +8.1%</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Eng. Rate</p>
+              <p class="text-2xl font-bold text-gray-900 mt-1">4.8%</p>
+              <p class="text-xs text-amber-600 font-medium mt-1">↓ -0.3%</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Likes</p>
+              <p class="text-2xl font-bold text-gray-900 mt-1">3,892</p>
+              <p class="text-xs text-green-600 font-medium mt-1">↑ +5.2%</p>
+            </div>
+            <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <p class="text-xs text-gray-400 font-medium uppercase tracking-wide">Comments</p>
+              <p class="text-2xl font-bold text-gray-900 mt-1">247</p>
+              <p class="text-xs text-green-600 font-medium mt-1">↑ +18%</p>
+            </div>
+          </div>
+          <!-- Chart area -->
+          <div class="grid md:grid-cols-3 gap-4">
+            <div class="md:col-span-2 bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-gray-900">Followers Over Time</h3>
+                <select class="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-600">
+                  <option>Last 30 days</option>
+                  <option>Last 90 days</option>
+                </select>
+              </div>
+              <!-- Fake chart -->
+              <div class="h-48 flex items-end gap-1.5">
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 40%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 55%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 35%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 60%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 45%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 70%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 50%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 65%"></div>
+                <div class="flex-1 bg-indigo-300 rounded-t" style="height: 80%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 55%"></div>
+                <div class="flex-1 bg-indigo-200 rounded-t" style="height: 75%"></div>
+                <div class="flex-1 bg-indigo-500 rounded-t" style="height: 90%"></div>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+              <h3 class="font-semibold text-gray-900 mb-3">Content Mix</h3>
+              <!-- Fake donut -->
+              <div class="flex flex-col items-center">
+                <div class="w-32 h-32 rounded-full border-8 border-indigo-500 flex items-center justify-center text-2xl font-bold text-indigo-600 relative" style="border-color: #6C63FF #FF6584 #10B981 #F59E0B;">
+                  <span class="text-xs font-normal text-gray-500 block text-center leading-tight">12<br/><span class="text-lg font-bold text-gray-900">posts</span></span>
+                </div>
+                <div class="mt-4 w-full space-y-1.5 text-xs">
+                  <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-500"></span> Carousel</span><span>5</span></div>
+                  <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full accent"></span> Reel</span><span>4</span></div>
+                  <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Story</span><span>2</span></div>
+                  <div class="flex items-center justify-between"><span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Live</span><span>1</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= SCREEN 4: CONTENT GRID ============= -->
+  <section id="screen-grid" class="screen-section">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-xs font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded">04</span>
+      <h2 class="text-xl font-bold text-gray-900">Content Grid — Calendar View</h2>
+    </div>
+    <div class="device">
+      <div class="flex">
+        <div class="sidebar-bg w-56 min-h-[600px] p-4 text-white hidden md:block">
+          <div class="space-y-1">
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📊 Dashboard</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/15 font-medium text-sm">📅 Content Grid</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">💡 Idea Bank</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">✍️ Posts</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">⚙️ Settings</div>
+          </div>
+        </div>
+        <div class="flex-1 p-6">
+          <!-- Grid top bar -->
+          <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-4">
+              <button class="p-1.5 rounded-lg hover:bg-gray-100">←</button>
+              <h2 class="text-lg font-bold text-gray-900">June 2026</h2>
+              <button class="p-1.5 rounded-lg hover:bg-gray-100">→</button>
+            </div>
+            <div class="flex gap-2">
+              <span class="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white">Month</span>
+              <span class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600">Week</span>
+              <span class="px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600">Day</span>
+            </div>
+          </div>
+          <!-- Weekday headers -->
+          <div class="grid grid-cols-7 gap-2 mb-2">
+            <div class="text-center text-xs font-semibold text-gray-400 uppercase">Mon</div>
+            <div class="text-center text-xs font-semibold text-gray-400 uppercase">Tue</div>
+            <div class="text-center text-xs font-semibold text-gray-400 uppercase">Wed</div>
+            <div class="text-center text-xs font-semibold text-gray-400 uppercase">Thu</div>
+            <div class="text-center text-xs font-semibold text-gray-400 uppercase">Fri</div>
+            <div class="text-center text-xs font-semibold text-gray-400 uppercase">Sat</div>
+            <div class="text-center text-xs font-semibold text-gray-400 uppercase">Sun</div>
+          </div>
+          <!-- Calendar days -->
+          <div class="grid grid-cols-7 gap-2">
+            <div class="bg-gray-50 rounded-lg p-2 min-h-[100px] border border-gray-200"><span class="text-xs text-gray-400">26</span></div>
+            <div class="bg-gray-50 rounded-lg p-2 min-h-[100px] border border-gray-200"><span class="text-xs text-gray-400">27</span></div>
+            <div class="bg-gray-50 rounded-lg p-2 min-h-[100px] border border-gray-200"><span class="text-xs text-gray-400">28</span></div>
+            <div class="bg-gray-50 rounded-lg p-2 min-h-[100px] border border-gray-200"><span class="text-xs text-gray-400">29</span></div>
+            <div class="bg-gray-50 rounded-lg p-2 min-h-[100px] border border-gray-200"><span class="text-xs text-gray-400">30</span></div>
+            <div class="bg-gray-50 rounded-lg p-2 min-h-[100px] border border-gray-200"><span class="text-xs text-gray-400">31</span></div>
+            <!-- Day 1 -->
+            <div class="bg-white rounded-lg p-2 min-h-[100px] border border-gray-200 shadow-sm">
+              <span class="text-xs font-semibold text-gray-900">1</span>
+              <div class="mt-1.5 space-y-1">
+                <div class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 truncate font-medium">📱 Summer lookbook</div>
+                <div class="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 truncate font-medium">🎬 BTS Reel</div>
+              </div>
+            </div>
+            <!-- Day 2 -->
+            <div class="bg-white rounded-lg p-2 min-h-[100px] border border-gray-200 shadow-sm">
+              <span class="text-xs font-semibold text-gray-900">2</span>
+              <div class="mt-1.5 space-y-1">
+                <div class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 truncate font-medium">🎙️ Live Q&A</div>
+              </div>
+            </div>
+            <!-- Day 3 -->
+            <div class="bg-white rounded-lg p-2 min-h-[100px] border border-gray-200 shadow-sm">
+              <span class="text-xs font-semibold text-gray-900">3</span>
+              <div class="mt-1.5 space-y-1">
+                <div class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 truncate font-medium">🌿 Monday story</div>
+              </div>
+            </div>
+            <!-- Day 4 -->
+            <div class="bg-white rounded-lg p-2 min-h-[100px] border border-gray-200 shadow-sm">
+              <span class="text-xs font-semibold text-gray-900">4</span>
+              <div class="mt-1.5 drag-placeholder flex items-center justify-center text-[10px] text-indigo-400">+ Drop idea</div>
+            </div>
+            <!-- Day 5 -->
+            <div class="bg-white rounded-lg p-2 min-h-[100px] border border-gray-200 shadow-sm">
+              <span class="text-xs font-semibold text-gray-900">5</span>
+              <div class="mt-1.5 space-y-1">
+                <div class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 truncate font-medium">📱 Carousel: tips</div>
+              </div>
+            </div>
+            <!-- Day 6 -->
+            <div class="bg-white rounded-lg p-2 min-h-[100px] border border-gray-200 shadow-sm">
+              <span class="text-xs font-semibold text-gray-900">6</span>
+            </div>
+            <!-- Day 7 -->
+            <div class="bg-white rounded-lg p-2 min-h-[100px] border border-gray-200 shadow-sm">
+              <span class="text-xs font-semibold text-gray-900">7</span>
+              <div class="mt-1.5 space-y-1">
+                <div class="text-[10px] px-1.5 py-0.5 rounded bg-pink-100 text-pink-700 truncate font-medium">🎬 Reel: haul</div>
+              </div>
+            </div>
+          </div>
+          <!-- Pillar distribution bar -->
+          <div class="mt-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div class="flex items-center justify-between text-sm mb-3">
+              <span class="font-semibold text-gray-700">Pillar Distribution</span>
+              <span class="text-xs text-gray-400">⚠️ Lifestyle pillar at 72% — consider balancing</span>
+            </div>
+            <div class="flex h-3 rounded-full overflow-hidden">
+              <div class="bg-indigo-500" style="width: 45%"></div>
+              <div class="accent" style="width: 27%; background: #FF6584"></div>
+              <div class="bg-emerald-500" style="width: 18%"></div>
+              <div class="bg-amber-500" style="width: 10%"></div>
+            </div>
+            <div class="flex gap-4 mt-2 text-xs text-gray-500">
+              <span>🔵 Lifestyle 45%</span>
+              <span>🩷 Fashion 27%</span>
+              <span>🟢 Tech 18%</span>
+              <span>🟡 Travel 10%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= SCREEN 5: IDEA BANK ============= -->
+  <section id="screen-ideas" class="screen-section">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-xs font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded">05</span>
+      <h2 class="text-xl font-bold text-gray-900">Idea Bank</h2>
+    </div>
+    <div class="device">
+      <div class="flex">
+        <div class="sidebar-bg w-56 min-h-[500px] p-4 text-white hidden md:block">
+          <div class="space-y-1">
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📊 Dashboard</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📅 Content Grid</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/15 font-medium text-sm">💡 Idea Bank</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">✍️ Posts</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">⚙️ Settings</div>
+          </div>
+        </div>
+        <div class="flex-1 p-6">
+          <!-- Top bar -->
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-bold text-gray-900">💡 Idea Bank</h2>
+            <button class="sidebar-bg text-white px-4 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition">+ New Idea</button>
+          </div>
+          <!-- Filters -->
+          <div class="flex gap-3 mb-6 flex-wrap">
+            <select class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white">
+              <option>All Pillars</option>
+              <option>Lifestyle</option>
+              <option>Fashion</option>
+              <option>Tech</option>
+            </select>
+            <select class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white">
+              <option>All Status</option>
+              <option>Idea</option>
+              <option>Converted</option>
+            </select>
+            <select class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 bg-white">
+              <option>All Sources</option>
+              <option>Manual</option>
+              <option>WhatsApp</option>
+            </select>
+            <input type="text" placeholder="Search ideas..." class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 flex-1 min-w-[200px]" />
+          </div>
+          <!-- Idea cards -->
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div class="flex items-start justify-between mb-2">
+                <h3 class="font-semibold text-gray-900 text-sm">Summer outfit ideas roundup</h3>
+                <span class="badge-idea text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Idea</span>
+              </div>
+              <p class="text-xs text-gray-500 mb-3">Carousel showcasing 5 summer outfits with shopping links...</p>
+              <div class="flex items-center gap-3 text-xs text-gray-400">
+                <span class="flex items-center gap-1">🔵 Lifestyle</span>
+                <span class="flex items-center gap-1">📱 Carousel</span>
+                <span class="flex items-center gap-1">✏️ Manual</span>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+              <div class="flex items-start justify-between mb-2">
+                <h3 class="font-semibold text-gray-900 text-sm">Behind the scenes: my workflow</h3>
+                <span class="badge-idea text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Idea</span>
+              </div>
+              <p class="text-xs text-gray-500 mb-3">Quick Reel showing my content creation process...</p>
+              <div class="flex items-center gap-3 text-xs text-gray-400">
+                <span class="flex items-center gap-1">🩷 Fashion</span>
+                <span class="flex items-center gap-1">🎬 Reel</span>
+                <span class="flex items-center gap-1">💬 WhatsApp</span>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm opacity-70">
+              <div class="flex items-start justify-between mb-2">
+                <h3 class="font-semibold text-gray-900 text-sm">Tech gadgets review</h3>
+                <span class="badge-converted text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Converted</span>
+              </div>
+              <p class="text-xs text-gray-500 mb-3">Review of the latest productivity gadgets...</p>
+              <div class="flex items-center gap-3 text-xs text-gray-400">
+                <span class="flex items-center gap-1">🟢 Tech</span>
+                <span class="flex items-center gap-1">📱 Carousel</span>
+                <span class="flex items-center gap-1">✏️ Manual</span>
+              </div>
+            </div>
+            <div class="bg-white rounded-xl p-4 border border-gray-200 border-dashed flex items-center justify-center min-h-[120px]">
+              <p class="text-sm text-gray-400">Drop an idea from WhatsApp or type one in ✨</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= SCREEN 6: POST EDITOR ============= -->
+  <section id="screen-editor" class="screen-section">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-xs font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded">06</span>
+      <h2 class="text-xl font-bold text-gray-900">Post Editor — New Post</h2>
+    </div>
+    <div class="device">
+      <div class="flex">
+        <div class="sidebar-bg w-56 min-h-[600px] p-4 text-white hidden md:block">
+          <div class="space-y-1">
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📊 Dashboard</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📅 Content Grid</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">💡 Idea Bank</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/15 font-medium text-sm">✍️ Posts</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">⚙️ Settings</div>
+          </div>
+        </div>
+        <div class="flex-1 p-6">
+          <div class="flex items-center gap-2 mb-6">
+            <span class="text-sm text-gray-400">Posts</span>
+            <span class="text-sm text-gray-300">/</span>
+            <span class="text-sm font-semibold text-gray-900">New Post</span>
+          </div>
+
+          <!-- Format selector -->
+          <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-3">Format</label>
+            <div class="flex gap-3">
+              <div class="flex-1 border-2 border-indigo-500 rounded-xl p-3 text-center bg-indigo-50 cursor-pointer">
+                <span class="text-2xl">📱</span>
+                <p class="text-xs font-semibold text-indigo-700 mt-1">Carousel</p>
+              </div>
+              <div class="flex-1 border-2 border-transparent rounded-xl p-3 text-center hover:border-gray-200 cursor-pointer">
+                <span class="text-2xl">🎬</span>
+                <p class="text-xs font-semibold text-gray-600 mt-1">Reel</p>
+              </div>
+              <div class="flex-1 border-2 border-transparent rounded-xl p-3 text-center hover:border-gray-200 cursor-pointer">
+                <span class="text-2xl">📖</span>
+                <p class="text-xs font-semibold text-gray-600 mt-1">Story</p>
+              </div>
+              <div class="flex-1 border-2 border-transparent rounded-xl p-3 text-center hover:border-gray-200 cursor-pointer">
+                <span class="text-2xl">🎙️</span>
+                <p class="text-xs font-semibold text-gray-600 mt-1">Live</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid md:grid-cols-5 gap-6">
+            <!-- Left: form -->
+            <div class="md:col-span-3 space-y-5">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
+                <input type="text" placeholder="Summer outfit ideas roundup" class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Caption</label>
+                <textarea rows="5" placeholder="Write your caption here..." class="w-full px-3.5 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none"></textarea>
+              </div>
+              <!-- AI caption suggestions -->
+              <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-semibold text-indigo-700">✨ AI Caption Suggestions</span>
+                  <button class="text-xs text-indigo-600 font-medium">Regenerate</button>
+                </div>
+                <div class="space-y-2">
+                  <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm text-gray-700 border border-indigo-100">
+                    "Summer is here! ☀️ Check out my top 5 outfit ideas for..."
+                    <button class="text-xs text-indigo-600 font-medium ml-2">Use</button>
+                  </div>
+                  <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm text-gray-500 border border-gray-100">
+                    "Elevate your summer style with these 5 must-try..."
+                    <button class="text-xs text-indigo-600 font-medium ml-2">Use</button>
+                  </div>
+                  <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-sm text-gray-500 border border-gray-100">
+                    "From beach days to brunch dates — here's what I'm..."
+                    <button class="text-xs text-indigo-600 font-medium ml-2">Use</button>
+                  </div>
+                </div>
+              </div>
+              <!-- Hashtags -->
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Hashtags</label>
+                <div class="flex flex-wrap gap-1.5 mb-2">
+                  <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">#summerstyle</span>
+                  <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">#outfitinspo</span>
+                  <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">#fashiontips</span>
+                  <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">#contentcreator</span>
+                  <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">#carousel</span>
+                </div>
+                <div class="flex gap-1 flex-wrap">
+                  <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full cursor-pointer">+ #ootd</span>
+                  <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full cursor-pointer">+ #summerfashion</span>
+                  <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full cursor-pointer">+ #lookbook</span>
+                </div>
+              </div>
+            </div>
+            <!-- Right: media + actions -->
+            <div class="md:col-span-2 space-y-5">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Media</label>
+                <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition cursor-pointer">
+                  <span class="text-3xl">🖼️</span>
+                  <p class="text-sm font-medium text-gray-600 mt-2">Drop images here</p>
+                  <p class="text-xs text-gray-400 mt-1">or click to browse</p>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1.5">Content Pillar</label>
+                <select class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm">
+                  <option>Lifestyle</option>
+                  <option>Fashion</option>
+                  <option>Tech</option>
+                  <option>Travel</option>
+                </select>
+              </div>
+              <div class="flex gap-3 pt-2">
+                <button class="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50 transition">Save Draft</button>
+                <button class="flex-1 sidebar-bg text-white py-2.5 rounded-lg text-sm font-medium hover:opacity-90 transition">Schedule</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============= SCREEN 7: SETTINGS ============= -->
+  <section id="screen-settings" class="screen-section">
+    <div class="flex items-center gap-3 mb-6">
+      <span class="text-xs font-semibold text-gray-400 bg-gray-200 px-2 py-0.5 rounded">07</span>
+      <h2 class="text-xl font-bold text-gray-900">Settings — Integrations</h2>
+    </div>
+    <div class="device">
+      <div class="flex">
+        <div class="sidebar-bg w-56 min-h-[500px] p-4 text-white hidden md:block">
+          <div class="space-y-1">
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📊 Dashboard</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">📅 Content Grid</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">💡 Idea Bank</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-sm text-indigo-100">✍️ Posts</div>
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/15 font-medium text-sm">⚙️ Settings</div>
+          </div>
+        </div>
+        <div class="flex-1 p-6">
+          <h2 class="text-lg font-bold text-gray-900 mb-6">⚙️ Settings</h2>
+          <!-- Tabs -->
+          <div class="flex gap-6 border-b border-gray-200 mb-6 text-sm">
+            <span class="pb-3 border-b-2 border-indigo-600 text-indigo-600 font-medium">Strategy</span>
+            <span class="pb-3 text-gray-500 hover:text-gray-700 cursor-pointer">Integrations</span>
+            <span class="pb-3 text-gray-500 hover:text-gray-700 cursor-pointer">Account</span>
+          </div>
+          <!-- Instagram card -->
+          <div class="bg-white border border-gray-200 rounded-xl p-5 mb-4 shadow-sm">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-lg">📸</div>
+                <div>
+                  <h3 class="font-semibold text-gray-900">Instagram</h3>
+                  <p class="text-xs text-gray-500">Not connected</p>
+                </div>
+              </div>
+              <button class="sidebar-bg text-white px-5 py-2 rounded-lg text-sm font-medium hover:opacity-90 transition">Connect</button>
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400">
+              Requires a Meta Business Account and Instagram Creator/Business account.
+            </div>
+          </div>
+          <!-- WhatsApp card -->
+          <div class="bg-white border border-gray-200 rounded-xl p-5 mb-4 shadow-sm">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl bg-green-500 flex items-center justify-center text-white text-lg">💬</div>
+                <div>
+                  <h3 class="font-semibold text-gray-900">WhatsApp</h3>
+                  <p class="text-xs text-gray-500">Disconnected</p>
+                </div>
+              </div>
+              <button class="border border-gray-300 text-gray-700 px-5 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition">Configure</button>
+            </div>
+            <div class="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-400">
+              Forward content ideas via WhatsApp for quick capture. Requires WhatsApp Cloud API setup.
+            </div>
+          </div>
+          <!-- Strategy card -->
+          <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold text-gray-900">Content Strategy</h3>
+              <button class="text-sm text-indigo-600 font-medium">Edit</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <p class="text-xs text-gray-400 mb-1">Archetype</p>
+                <p class="font-medium text-gray-900">Aspiring Influencer 🌟</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-400 mb-1">Voice</p>
+                <p class="font-medium text-gray-900">Warm, authentic, relatable</p>
+              </div>
+              <div class="col-span-2">
+                <p class="text-xs text-gray-400 mb-1">Content Pillars</p>
+                <div class="flex gap-2">
+                  <span class="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Lifestyle</span>
+                  <span class="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">Fashion</span>
+                  <span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">Tech</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <div class="text-center text-xs text-gray-400 pt-8 pb-4">
+    Social Media Manager — MVP Mockups • Design v0.1 • 2026
+  </div>
+</div>
+
+</body>
+</html>
