@@ -9,10 +9,39 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 
 from app.agents.base import BaseAgent
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Few-shot / memory helpers
+# ---------------------------------------------------------------------------
+
+def _fetch_recent_captions(profile_id: str, limit: int = 3) -> list[str]:
+    """Load the most recent published captions for this profile from Supabase.
+
+    Returns an empty list on any error so the agent degrades gracefully.
+    """
+    try:
+        from app.core.database import get_supabase_service_client
+        supabase = get_supabase_service_client()
+        resp = (
+            supabase.table("content_posts")
+            .select("caption")
+            .eq("profile_id", profile_id)
+            .eq("status", "published")
+            .not_.is_("caption", "null")
+            .neq("caption", "")
+            .order("published_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return [row["caption"] for row in (resp.data or []) if row.get("caption")]
+    except Exception as exc:
+        logger.debug("Could not fetch recent captions for %s: %s", profile_id, exc)
+        return []
 
 # ---------------------------------------------------------------------------
 # Data classes
@@ -53,7 +82,6 @@ class ContentCreatorAgent(BaseAgent):
     """
 
     MODEL = "qwen2.5:7b"
-    OLLAMA_BASE_URL = "http://localhost:11434"
 
     # ------------------------------------------------------------------
     # Public API
@@ -65,8 +93,13 @@ class ContentCreatorAgent(BaseAgent):
         n: int = 3,
     ) -> list[CaptionSuggestion]:
         """Return *n* caption suggestions for the given post context."""
-        prompt = self._build_caption_prompt(post_context, n)
-        raw = await self._ollama_generate(prompt)
+        # Fetch few-shot examples from published posts
+        few_shot: list[str] = []
+        if self._profile:
+            few_shot = _fetch_recent_captions(self._profile.profile_id, limit=3)
+
+        prompt = self._build_caption_prompt(post_context, n, few_shot)
+        raw = await self._ollama_generate(prompt, task_type="captions")
         return self._parse_captions(raw, n)
 
     async def suggest_hashtags(
@@ -76,7 +109,7 @@ class ContentCreatorAgent(BaseAgent):
     ) -> list[str]:
         """Return 5–10 hashtag suggestions for the given caption."""
         prompt = self._build_hashtag_prompt(caption, pillars or [])
-        raw = await self._ollama_generate(prompt)
+        raw = await self._ollama_generate(prompt, task_type="hashtags")
         return self._parse_hashtags(raw)
 
     async def suggest_format(
@@ -85,7 +118,7 @@ class ContentCreatorAgent(BaseAgent):
     ) -> FormatRecommendation:
         """Recommend the best Instagram format for a content idea."""
         prompt = self._build_format_prompt(idea)
-        raw = await self._ollama_generate(prompt)
+        raw = await self._ollama_generate(prompt, task_type="format")
         return self._parse_format(raw)
 
     async def generate_weekly_ideas(self) -> list[ContentIdea]:
@@ -97,7 +130,7 @@ class ContentCreatorAgent(BaseAgent):
         ):
             return []
         prompt = self._build_weekly_ideas_prompt()
-        raw = await self._ollama_generate(prompt)
+        raw = await self._ollama_generate(prompt, task_type="weekly-ideas")
         return self._parse_weekly_ideas(raw)
 
     async def run(self, **kwargs) -> object:
@@ -126,7 +159,7 @@ class ContentCreatorAgent(BaseAgent):
     # Prompt builders
     # ------------------------------------------------------------------
 
-    def _build_caption_prompt(self, post_context: str, n: int) -> str:
+    def _build_caption_prompt(self, post_context: str, n: int, few_shot: list[str] | None = None) -> str:
         profile = self._profile
         parts = [
             f"You are a social media content creator with archetype: {profile.archetype if profile else 'personal_sharing'}.",
@@ -136,10 +169,21 @@ class ContentCreatorAgent(BaseAgent):
                 parts.append(f"Tone / voice: {profile.voice_description}")
             if profile.content_pillars:
                 parts.append(f"Content pillars: {', '.join(profile.content_pillars)}")
+                parts.append(
+                    "STRICT RULE: Every caption MUST align with one of the content pillars above. "
+                    "If an idea does not fit any pillar, do not include it."
+                )
             if profile.target_audience:
                 parts.append(f"Target audience: {profile.target_audience}")
             if profile.goals:
                 parts.append(f"Goals: {profile.goals}")
+
+        # Few-shot examples from previously published captions
+        if few_shot:
+            parts.append("")
+            parts.append("Recent captions from this creator (match this tone and style):")
+            for i, caption in enumerate(few_shot, 1):
+                parts.append(f'{i}. "{caption[:200]}"')
 
         parts.append("")
         parts.append(f"Suggest exactly {n} Instagram captions for the following post context.")
@@ -187,6 +231,7 @@ class ContentCreatorAgent(BaseAgent):
     def _build_weekly_ideas_prompt(self) -> str:
         profile = self._profile
         today = datetime.utcnow().strftime("%Y-%m-%d")
+        valid_pillars = profile.content_pillars if profile and profile.content_pillars else []
         parts = [
             f"You are a social media content strategist. Today is {today}.",
         ]
@@ -195,14 +240,23 @@ class ContentCreatorAgent(BaseAgent):
                 parts.append(f"Archetype: {profile.archetype}")
             if profile.voice_description:
                 parts.append(f"Voice: {profile.voice_description}")
-            if profile.content_pillars:
-                parts.append(f"Content pillars: {', '.join(profile.content_pillars)}")
+            if valid_pillars:
+                parts.append(f"Content pillars: {', '.join(valid_pillars)}")
             if profile.target_audience:
                 parts.append(f"Target audience: {profile.target_audience}")
         parts.append("")
         parts.append(
             "Generate up to 7 content ideas for the upcoming week (one per day). "
             "Spread them across the content pillars. "
+        )
+        if valid_pillars:
+            parts.append(
+                f"STRICT RULE: Every idea MUST use exactly one of these pillars: {', '.join(valid_pillars)}. "
+                "If an idea does not fit any pillar, do not include it. "
+                "The 'content_pillar' field in your response MUST match one of the listed pillars exactly."
+            )
+        parts.append("")
+        parts.append(
             'Return ONLY a JSON array of objects with keys "title", "description", "suggested_format", and "content_pillar". '
             "No markdown, no explanation."
         )
@@ -212,11 +266,13 @@ class ContentCreatorAgent(BaseAgent):
     # Ollama client
     # ------------------------------------------------------------------
 
-    async def _ollama_generate(self, prompt: str) -> str:
+    async def _ollama_generate(self, prompt: str, task_type: str = "") -> str:
         """Send a prompt to Ollama and return the raw response text.
 
-        Retries up to 3 times with exponential backoff on transient errors.
+        Checks the agent cache first. Retries up to 3 times on transient errors.
+        Saves the interaction to agent memory when ``task_type`` is provided.
         """
+        import time
         import httpx
         from tenacity import (
             retry,
@@ -224,6 +280,24 @@ class ContentCreatorAgent(BaseAgent):
             wait_exponential,
             retry_if_exception_type,
         )
+        from app.core.agent_cache import get_agent_cache
+        from app.core.config import settings
+
+        cache = get_agent_cache()
+        cache_key = ""
+        if task_type and self._profile:
+            cache_key = cache.make_key(
+                profile_id=self._profile.profile_id,
+                agent_type=self.__class__.__name__,
+                task=task_type,
+                prompt=prompt,
+            )
+            cached = await cache.get(cache_key)
+            if cached is not None:
+                logger.debug("Cache hit for %s/%s", self.__class__.__name__, task_type)
+                return cached.get("response", "")
+
+        start = time.perf_counter()
 
         @retry(
             stop=stop_after_attempt(3),
@@ -239,19 +313,72 @@ class ContentCreatorAgent(BaseAgent):
                     "prompt": prompt,
                     "stream": False,
                 }
+                from app.core.config import settings
                 resp = await client.post(
-                    f"{self.OLLAMA_BASE_URL}/api/generate",
+                    f"{settings.OLLAMA_BASE_URL}/api/generate",
                     json=payload,
                 )
                 resp.raise_for_status()
                 data = resp.json()
                 return data.get("response", "")
 
-        return await _call()
+        raw = ""
+        try:
+            raw = await _call()
+        finally:
+            latency_ms = int((time.perf_counter() - start) * 1000)
+            if task_type:
+                await self._save_interaction(
+                    task=task_type,
+                    prompt=prompt,
+                    response=raw,
+                    model=self.MODEL,
+                    latency_ms=latency_ms,
+                )
+            if cache_key:
+                try:
+                    await cache.set(
+                        cache_key,
+                        {"response": raw},
+                        ttl=settings.AGENT_CACHE_TTL_SECONDS,
+                    )
+                except Exception:
+                    pass  # Cache is best-effort
+        return raw
 
     # ------------------------------------------------------------------
     # Parsers
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    def _valid_pillars(self) -> set[str]:
+        """Return the set of valid pillar names for the current profile."""
+        if self._profile and self._profile.content_pillars:
+            return {p.lower() for p in self._profile.content_pillars}
+        return set()
+
+    def _validate_pillar(self, pillar: str) -> str:
+        """Ensure a pillar value is in the profile's allowed set.
+
+        Returns the original if valid, otherwise tries case-insensitive match,
+        or returns an empty string if no match is found.
+        """
+        if not pillar:
+            return ""
+        valid = self._valid_pillars()
+        if not valid:
+            return pillar  # No restriction when profile has no pillars
+        lowered = pillar.lower()
+        if lowered in valid:
+            # Return the canonical casing from the profile
+            for original in self._profile.content_pillars or []:
+                if original.lower() == lowered:
+                    return original
+        logger.warning("Pillar '%s' rejected — not in valid pillars: %s", pillar, valid)
+        return ""
 
     def _parse_captions(self, raw: str, n: int) -> list[CaptionSuggestion]:
         """Parse the Ollama response into CaptionSuggestion objects."""
@@ -260,16 +387,20 @@ class ContentCreatorAgent(BaseAgent):
             items = json.loads(cleaned)
             if isinstance(items, dict):
                 items = [items]
-            return [
-                CaptionSuggestion(
-                    text=item.get("text", ""),
-                    tone=item.get("tone", ""),
-                    length=item.get("length", ""),
-                    pillar=item.get("pillar", ""),
+            results = []
+            for item in (items or []):
+                if not item.get("text"):
+                    continue
+                validated_pillar = self._validate_pillar(item.get("pillar", ""))
+                results.append(
+                    CaptionSuggestion(
+                        text=item.get("text", ""),
+                        tone=item.get("tone", ""),
+                        length=item.get("length", ""),
+                        pillar=validated_pillar,
+                    )
                 )
-                for item in (items or [])
-                if item.get("text")
-            ][:n]
+            return results[:n]
         except (json.JSONDecodeError, TypeError) as exc:
             logger.warning("Failed to parse captions: %s — raw: %s", exc, raw[:200])
             return [CaptionSuggestion(text=raw.strip())]
@@ -313,16 +444,28 @@ class ContentCreatorAgent(BaseAgent):
             items = json.loads(cleaned)
             if isinstance(items, dict):
                 items = [items]
-            return [
-                ContentIdea(
-                    title=item.get("title", ""),
-                    description=item.get("description", ""),
-                    suggested_format=item.get("suggested_format", ""),
-                    content_pillar=item.get("content_pillar", ""),
+            results = []
+            for item in (items or []):
+                if not item.get("title"):
+                    continue
+                validated_pillar = self._validate_pillar(item.get("content_pillar", ""))
+                # If pillar is invalid and we have strict pillars, skip the idea
+                if self._valid_pillars() and not validated_pillar:
+                    logger.warning(
+                        "Weekly idea '%s' skipped — invalid pillar '%s'",
+                        item.get("title", "")[:40],
+                        item.get("content_pillar", ""),
+                    )
+                    continue
+                results.append(
+                    ContentIdea(
+                        title=item.get("title", ""),
+                        description=item.get("description", ""),
+                        suggested_format=item.get("suggested_format", ""),
+                        content_pillar=validated_pillar,
+                    )
                 )
-                for item in (items or [])
-                if item.get("title")
-            ][:7]
+            return results[:7]
         except (json.JSONDecodeError, TypeError) as exc:
             logger.warning("Failed to parse weekly ideas: %s — raw: %s", exc, raw[:200])
             return [ContentIdea(title=raw.strip())]

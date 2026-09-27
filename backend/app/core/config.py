@@ -43,12 +43,27 @@ class Settings(BaseSettings):
     # --- Scheduling ---
     SCHEDULER_DB_URL: str = "sqlite:///./scheduler.db"
 
+    # --- LLM / Ollama ---
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+
+    # --- Rate limiting ---
+    RATE_LIMIT_AGENTS_PER_MINUTE: int = 10
+    RATE_LIMIT_AGENTS_BURST: int = 3
+
+    # --- Agent response cache ---
+    AGENT_CACHE_TTL_SECONDS: int = 300  # 5 minutes
+    REDIS_URL: str = ""  # empty = in-memory cache
+
+    # --- Production safeguards ---
+    REQUIRE_HTTPS_WEBHOOKS: bool = True
+
     @property
     def fernet_key_bytes(self) -> bytes:
         """Return the Fernet key as bytes.
 
         Raises RuntimeError in production if the key is not set.
         Generates a random dev key (with warning) when DEBUG is True.
+        Caches the generated key so multiple calls return the same key.
         """
         if not self.FERNET_SECRET_KEY:
             if self.DEBUG:
@@ -56,11 +71,14 @@ class Settings(BaseSettings):
                 import base64
                 import logging
 
-                logging.warning(
-                    "FERNET_SECRET_KEY not set — using random dev key "
-                    "(DO NOT USE IN PRODUCTION)"
-                )
-                return base64.urlsafe_b64encode(secrets.token_bytes(32))
+                # Cache the generated key on the instance
+                if not hasattr(self, "_dev_fernet_key"):
+                    logging.warning(
+                        "FERNET_SECRET_KEY not set — using random dev key "
+                        "(DO NOT USE IN PRODUCTION)"
+                    )
+                    self._dev_fernet_key = base64.urlsafe_b64encode(secrets.token_bytes(32))
+                return self._dev_fernet_key
             raise RuntimeError("FERNET_SECRET_KEY must be set in production")
         return self.FERNET_SECRET_KEY.encode("utf-8")
 

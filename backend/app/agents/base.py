@@ -7,6 +7,7 @@ needs to personalise its output.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -43,6 +44,39 @@ class BaseAgent(ABC):
     @profile.setter
     def profile(self, value: ProfileStrategy | None) -> None:
         self._profile = value
+
+    # ------------------------------------------------------------------
+    # Memory helper (opt-in, failures are swallowed)
+    # ------------------------------------------------------------------
+
+    async def _save_interaction(
+        self,
+        task: str,
+        prompt: str,
+        response: str,
+        model: str = "",
+        latency_ms: int | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Persist the interaction to agent memory (best-effort)."""
+        try:
+            from app.core.agent_memory import get_agent_memory, AgentInteraction
+            memory = get_agent_memory()
+            await memory.save_interaction(
+                AgentInteraction(
+                    profile_id=self._profile.profile_id if self._profile else None,
+                    agent_type=self.__class__.__name__,
+                    task=task,
+                    prompt=prompt,
+                    response=response,
+                    model=model,
+                    latency_ms=latency_ms,
+                    metadata=metadata,
+                )
+            )
+        except Exception:
+            # Memory is best-effort; never let it break the agent flow
+            pass
 
     # ------------------------------------------------------------------
     # Abstract interface

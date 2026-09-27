@@ -38,7 +38,6 @@ class IdeaBankAgent(BaseAgent):
     """
 
     MODEL = "phi4-mini:3.8b"
-    OLLAMA_BASE_URL = "http://localhost:11434"
 
     async def process_whatsapp_message(
         self,
@@ -99,13 +98,13 @@ class IdeaBankAgent(BaseAgent):
         """
         valid_pillars = self._profile.content_pillars if self._profile and self._profile.content_pillars else None
         prompt = self._build_pillar_prompt(description, valid_pillars)
-        raw = await self._ollama_generate(prompt)
+        raw = await self._ollama_generate(prompt, task_type="auto-tag")
         return self._parse_pillar(raw, valid_pillars)
 
     async def suggest_format_from_text(self, description: str) -> FormatRecommendation | None:
         """Suggest an Instagram format based on the description text."""
         prompt = self._build_format_prompt(description)
-        raw = await self._ollama_generate(prompt)
+        raw = await self._ollama_generate(prompt, task_type="suggest-format")
         return self._parse_format(raw)
 
     async def run(self, **kwargs) -> object:
@@ -154,11 +153,13 @@ class IdeaBankAgent(BaseAgent):
         ]
         return "\n".join(parts)
 
-    async def _ollama_generate(self, prompt: str) -> str:
+    async def _ollama_generate(self, prompt: str, task_type: str = "") -> str:
         """Send a prompt to Ollama and return the raw response text.
 
-        Retries up to 3 times with exponential backoff on transient errors.
+        Checks the agent cache first. Retries up to 3 times on transient errors.
+        Saves the interaction to agent memory when ``task_type`` is provided.
         """
+        import time
         import httpx
         from tenacity import (
             retry,
@@ -166,6 +167,24 @@ class IdeaBankAgent(BaseAgent):
             wait_exponential,
             retry_if_exception_type,
         )
+        from app.core.agent_cache import get_agent_cache
+        from app.core.config import settings
+
+        cache = get_agent_cache()
+        cache_key = ""
+        if task_type and self._profile:
+            cache_key = cache.make_key(
+                profile_id=self._profile.profile_id,
+                agent_type=self.__class__.__name__,
+                task=task_type,
+                prompt=prompt,
+            )
+            cached = await cache.get(cache_key)
+            if cached is not None:
+                logger.debug("Cache hit for %s/%s", self.__class__.__name__, task_type)
+                return cached.get("response", "")
+
+        start = time.perf_counter()
 
         @retry(
             stop=stop_after_attempt(3),
@@ -181,15 +200,38 @@ class IdeaBankAgent(BaseAgent):
                     "prompt": prompt,
                     "stream": False,
                 }
+                from app.core.config import settings
                 resp = await client.post(
-                    f"{self.OLLAMA_BASE_URL}/api/generate",
+                    f"{settings.OLLAMA_BASE_URL}/api/generate",
                     json=payload,
                 )
                 resp.raise_for_status()
                 data = resp.json()
                 return data.get("response", "")
 
-        return await _call()
+        raw = ""
+        try:
+            raw = await _call()
+        finally:
+            latency_ms = int((time.perf_counter() - start) * 1000)
+            if task_type:
+                await self._save_interaction(
+                    task=task_type,
+                    prompt=prompt,
+                    response=raw,
+                    model=self.MODEL,
+                    latency_ms=latency_ms,
+                )
+            if cache_key:
+                try:
+                    await cache.set(
+                        cache_key,
+                        {"response": raw},
+                        ttl=settings.AGENT_CACHE_TTL_SECONDS,
+                    )
+                except Exception:
+                    pass  # Cache is best-effort
+        return raw
 
     @staticmethod
     def _clean_json(raw: str) -> str:

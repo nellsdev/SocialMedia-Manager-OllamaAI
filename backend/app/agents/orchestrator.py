@@ -172,8 +172,9 @@ class Orchestrator:
             )
 
             async with httpx.AsyncClient(timeout=30.0) as client:
+                from app.core.config import settings
                 resp = await client.post(
-                    "http://localhost:11434/api/generate",
+                    f"{settings.OLLAMA_BASE_URL}/api/generate",
                     json={"model": "phi4-mini:3.8b", "prompt": prompt, "stream": False},
                 )
                 resp.raise_for_status()

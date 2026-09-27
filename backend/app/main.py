@@ -3,17 +3,34 @@
 Registers all routers, configures CORS, and provides health-check endpoint.
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
-from app.api import agents, auth, grid, ideas, posts, profiles, social, whatsapp
+from app.api import agents, auth, dashboard, grid, ideas, posts, profiles, social, whatsapp
 from app.core.config import settings
+from app.core.rate_limit import get_limiter
 
 app = FastAPI(
     title=settings.APP_NAME,
     version="0.1.0",
     description="MVP — Personal Profile + Instagram social media manager",
 )
+
+# ---------------------------------------------------------------------------
+# Rate limiting (slowapi)
+# ---------------------------------------------------------------------------
+
+limiter = get_limiter()
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit exceeded. Please slow down."},
+    )
 
 # ---------------------------------------------------------------------------
 # CORS
@@ -37,6 +54,7 @@ app.include_router(social.router, prefix="/api")
 app.include_router(ideas.router, prefix="/api")
 app.include_router(posts.router, prefix="/api")
 app.include_router(grid.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
 app.include_router(whatsapp.router, prefix="/api")
 
@@ -65,7 +83,7 @@ async def health():
     try:
         import httpx
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get("http://localhost:11434/api/tags")
+            resp = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
             if resp.status_code == 200:
                 checks["ollama"] = "ok"
             else:

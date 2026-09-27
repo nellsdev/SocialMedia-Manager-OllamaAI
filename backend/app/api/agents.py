@@ -8,11 +8,12 @@ appropriate agent.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from supabase import Client
 
 from app.agents.orchestrator import Orchestrator, AgentTask
 from app.core.database import get_supabase_client
+from app.core.rate_limit import get_limiter, agent_rate_limit
 from app.schemas.agents import (
     CaptionRequest,
     CaptionResponse,
@@ -39,12 +40,17 @@ def _get_supabase() -> Client:
     return get_supabase_client()
 
 
-def _require_user(supabase: Client) -> dict:
+def _require_user(request: Request, supabase: Client) -> dict:
     result = supabase.auth.get_user()
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    return {"id": user.id, "email": user.email}
+    user_dict = {"id": str(user.id), "email": user.email}
+    request.state.user = user_dict
+    return user_dict
+
+
+limiter = get_limiter()
 
 
 def _require_profile(supabase: Client, user: dict) -> str:
@@ -55,7 +61,9 @@ def _require_profile(supabase: Client, user: dict) -> str:
 
 
 @router.post("/captions", response_model=CaptionResponse)
+@limiter.limit(agent_rate_limit())
 async def suggest_captions(
+    request: Request,
     body: CaptionRequest,
     supabase: Client = Depends(_get_supabase),
 ):
@@ -63,7 +71,7 @@ async def suggest_captions(
 
     Uses ContentCreatorAgent with qwen2.5:7b via Ollama.
     """
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     orchestrator = _get_orchestrator()
@@ -91,12 +99,14 @@ async def suggest_captions(
 
 
 @router.post("/hashtags", response_model=HashtagResponse)
+@limiter.limit(agent_rate_limit())
 async def suggest_hashtags(
+    request: Request,
     body: HashtagRequest,
     supabase: Client = Depends(_get_supabase),
 ):
     """Suggest 5-10 hashtags for the given caption (R013)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     orchestrator = _get_orchestrator()
@@ -118,12 +128,14 @@ async def suggest_hashtags(
 
 
 @router.post("/format", response_model=FormatResponse)
+@limiter.limit(agent_rate_limit())
 async def suggest_format(
+    request: Request,
     body: FormatRequest,
     supabase: Client = Depends(_get_supabase),
 ):
     """Recommend the best Instagram format for a content idea (R015)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     orchestrator = _get_orchestrator()
@@ -145,11 +157,13 @@ async def suggest_format(
 
 
 @router.post("/weekly-ideas", response_model=WeeklyIdeasResponse)
+@limiter.limit(agent_rate_limit())
 async def generate_weekly_ideas(
+    request: Request,
     supabase: Client = Depends(_get_supabase),
 ):
     """Generate up to 7 content ideas for the upcoming week (R014)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     orchestrator = _get_orchestrator()

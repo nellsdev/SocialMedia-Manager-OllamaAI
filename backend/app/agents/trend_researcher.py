@@ -29,7 +29,6 @@ class TrendResearcherAgent(BaseAgent):
     """Fetches trending hashtags and topics relevant to the profile's pillars."""
 
     MODEL = "qwen2.5:7b"
-    OLLAMA_BASE_URL = "http://localhost:11434"
 
     async def get_trending_hashtags(self, pillars: list[str] | None = None) -> list[str]:
         """Return trending hashtags for the given content pillars."""
@@ -105,8 +104,9 @@ class TrendResearcherAgent(BaseAgent):
                     "prompt": prompt,
                     "stream": False,
                 }
+                from app.core.config import settings
                 resp = await client.post(
-                    f"{self.OLLAMA_BASE_URL}/api/generate",
+                    f"{settings.OLLAMA_BASE_URL}/api/generate",
                     json=payload,
                 )
                 resp.raise_for_status()
