@@ -31,3 +31,5 @@ Thumbs.db
 
 # Project specific
 backend/scheduler.db
+# Local Pi runtime state
+.atl/
