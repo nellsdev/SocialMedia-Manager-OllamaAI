@@ -33,3 +33,4 @@ Thumbs.db
 backend/scheduler.db
 # Local Pi runtime state
 .atl/
+*.tsbuildinfo
