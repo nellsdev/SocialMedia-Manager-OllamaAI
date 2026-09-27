@@ -47,9 +47,12 @@ def get_supabase_service_client() -> Client:
 # SQLAlchemy (local ORM)
 # ---------------------------------------------------------------------------
 
-engine = create_engine(settings.SUPABASE_URL.replace(
-    "http://", "postgresql://"
-) if settings.SUPABASE_URL.startswith("http") else settings.SUPABASE_URL)
+_pg_url = settings.SUPABASE_URL
+if _pg_url.startswith("http://"):
+    _pg_url = _pg_url.replace("http://", "postgresql://")
+elif _pg_url.startswith("https://"):
+    _pg_url = _pg_url.replace("https://", "postgresql://")
+engine = create_engine(_pg_url)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

@@ -66,14 +66,13 @@ class Profile(Base):
     target_audience = Column(Text, nullable=True)
     goals = Column(Text, nullable=True)
     visual_references = Column(ARRAY(String), nullable=True)
-    whatsapp_phone = Column(String(50), nullable=True, comment="Linked WhatsApp number")
-
     created_at, updated_at = _timestamps()
 
     # Relationships
     social_accounts = relationship("SocialAccount", back_populates="profile", cascade="all, delete-orphan")
     content_ideas = relationship("ContentIdea", back_populates="profile", cascade="all, delete-orphan")
     content_posts = relationship("ContentPost", back_populates="profile", cascade="all, delete-orphan")
+    whatsapp_connection = relationship("WhatsAppConnection", back_populates="profile", cascade="all, delete-orphan", uselist=False)
 
     def __repr__(self) -> str:
         return f"<Profile {self.slug} ({self.archetype})>"
@@ -204,10 +203,63 @@ class SchedulerJob(Base):
     post_id = Column(UUID(as_uuid=True), ForeignKey("content_posts.id", ondelete="CASCADE"), nullable=False)
     job_id = Column(String(255), nullable=False, comment="APScheduler job ID")
     scheduled_at = Column(DateTime(timezone=True), nullable=False)
-    status = Column(String(20), nullable=False, default="pending", comment="pending / running / completed / failed")
+    status = Column(String(20), nullable=False, default="pending", comment="pending / running / completed / failed / retrying")
     retry_count = Column(Integer, default=0)
+    executed_at = Column(DateTime(timezone=True), nullable=True)
 
     created_at, updated_at = _timestamps()
 
     def __repr__(self) -> str:
         return f"<SchedulerJob post={self.post_id} [{self.status}]>"
+
+
+# ---------------------------------------------------------------------------
+# agent_memories
+# ---------------------------------------------------------------------------
+
+class AgentMemoryModel(Base):
+    __tablename__ = "agent_memories"
+
+    id = _uuid_pk()
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False)
+    agent_type = Column(String(50), nullable=False)
+    task = Column(String(50), nullable=False)
+    prompt = Column(Text, nullable=False)
+    response = Column(Text, nullable=False)
+    model = Column(String(50), nullable=True)
+    latency_ms = Column(Integer, nullable=True)
+    raw_data = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"<AgentMemory {self.agent_type}/{self.task} ({self.latency_ms}ms)>"
+
+
+# ---------------------------------------------------------------------------
+# whatsapp_connections
+# ---------------------------------------------------------------------------
+
+class WhatsAppConnection(Base):
+    __tablename__ = "whatsapp_connections"
+
+    id = _uuid_pk()
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False, unique=True)
+    phone_hash = Column(String(64), nullable=False, index=True, comment="SHA-256 of normalized phone")
+    phone_encrypted = Column(Text, nullable=False, comment="Fernet-encrypted phone for webhook sending")
+    wa_business_account_id = Column(String(255), nullable=True, comment="Meta Business Account ID")
+    wa_phone_number_id = Column(String(255), nullable=True, comment="Meta Phone Number ID")
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    status = Column(
+        String(20),
+        nullable=False,
+        default="pending",
+        comment="pending / verified / revoked",
+    )
+
+    created_at, updated_at = _timestamps()
+
+    # Relationships
+    profile = relationship("Profile", back_populates="whatsapp_connection")
+
+    def __repr__(self) -> str:
+        return f"<WhatsAppConnection profile={self.profile_id} [{self.status}]>"
