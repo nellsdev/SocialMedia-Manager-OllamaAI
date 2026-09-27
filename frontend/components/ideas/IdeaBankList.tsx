@@ -34,7 +34,7 @@ export function IdeaBankList() {
         status: statusFilter || undefined,
         source: sourceFilter || undefined,
       });
-      setIdeas(data as Idea[]);
+      setIdeas(data as unknown as Idea[]);
     } catch {
       setIdeas([]);
     } finally {

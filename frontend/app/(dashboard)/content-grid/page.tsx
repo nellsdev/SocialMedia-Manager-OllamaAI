@@ -43,8 +43,8 @@ export default function ContentGridPage() {
         api.getGrid(year, month),
         api.getGridDistribution(),
       ]);
-      setDays((gridData.days ?? []) as GridDay[]);
-      setDistribution(distData as DistributionData);
+      setDays((gridData.days ?? []) as unknown as GridDay[]);
+      setDistribution(distData as unknown as DistributionData);
     } catch {
       setDays([]);
     } finally {

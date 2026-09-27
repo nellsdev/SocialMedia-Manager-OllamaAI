@@ -25,7 +25,7 @@ export function OnboardingWizard() {
       try {
         const api = getApi();
         const data = await api.listArchetypes();
-        setArchetypes(data as Archetype[]);
+        setArchetypes(data as unknown as Archetype[]);
       } catch {
         // If API fails, use defaults
         setArchetypes([]);
