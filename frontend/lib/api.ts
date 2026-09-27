@@ -60,7 +60,15 @@ export class ApiClient {
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({ detail: res.statusText }));
-      throw new ApiError(res.status, errorData.detail || "Unknown error", path);
+      const error = new ApiError(res.status, errorData.detail || "Unknown error", path);
+
+      if (res.status === 401 && typeof window !== "undefined") {
+        localStorage.removeItem("session_token");
+        document.cookie = "session_token=; path=/; max-age=0";
+        window.location.href = "/login";
+      }
+
+      throw error;
     }
 
     return res.json() as Promise<T>;
@@ -206,6 +214,28 @@ export class ApiClient {
   retryPublish(postId: string) {
     return this.request<{ status: string; platform_post_id: string | null; platform_permalink: string | null; failure_reason: string | null }>(
       "POST", `/api/posts/${postId}/retry`
+    );
+  }
+
+  // ---- Dashboard ----
+
+  getDashboardKpis() {
+    return this.request<{
+      followers: number;
+      likes: number;
+      comments: number;
+      reach: number;
+      engagement_rate: number;
+      followers_delta: number;
+      engagement_delta: number;
+    }>("GET", "/api/dashboard/kpis");
+  }
+
+  getDashboardTimeseries(metric: string = "followers", days: number = 30) {
+    const params = new URLSearchParams({ metric, days: String(days) });
+    return this.request<{ metric: string; days: number; data: Array<{ date: string; value: number }> }>(
+      "GET",
+      `/api/dashboard/timeseries?${params.toString()}`
     );
   }
 

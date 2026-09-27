@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useTheme } from "@/components/shared/ThemeProvider";
 import {
@@ -15,7 +15,7 @@ import {
   Sun,
   Grid3X3,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const sidebarLinks = [
   { href: "/ideas", label: "Idea Bank", icon: Lightbulb },
@@ -31,9 +31,23 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const router = useRouter();
+  const { user, profile, loading, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+
+    if (profile === null && !pathname.startsWith("/settings/strategy")) {
+      router.replace("/settings/strategy");
+    }
+  }, [loading, user, profile, pathname, router]);
 
   return (
     <div className="flex min-h-screen">
