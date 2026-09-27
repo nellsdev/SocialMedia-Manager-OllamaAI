@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLJobStore
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 from app.agents.base import BaseAgent
 from app.core.config import settings
@@ -95,7 +95,7 @@ def get_scheduler() -> AsyncIOScheduler:
     """Return the shared APScheduler instance, creating it if needed."""
     global _scheduler
     if _scheduler is None:
-        _jobstore = SQLJobStore(url=_get_scheduler_db_url())
+        _jobstore = SQLAlchemyJobStore(url=_get_scheduler_db_url())
         _scheduler = AsyncIOScheduler(jobstores={"default": _jobstore})
         _scheduler.start()
         logger.info("APScheduler started (SQL job store)")
