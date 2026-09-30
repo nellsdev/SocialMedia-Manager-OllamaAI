@@ -105,7 +105,26 @@ def get_scheduler() -> AsyncIOScheduler:
             run_date=datetime.now(timezone.utc),
             id="reconcile_startup",
         )
+        # Daily token-refresh job: look for Instagram tokens near expiry
+        _scheduler.add_job(
+            run_token_refresh_scan,
+            trigger="cron",
+            hour=3,
+            minute=0,
+            id="token_refresh_daily",
+            replace_existing=True,
+        )
+        logger.info("Registered daily token-refresh job (03:00 UTC)")
     return _scheduler
+
+
+async def run_token_refresh_scan() -> None:
+    """APScheduler job wrapper: refresh Instagram tokens nearing expiry."""
+    try:
+        from app.core.token_refresh import refresh_all_near_expiry
+        await refresh_all_near_expiry()
+    except Exception as exc:
+        logger.error("Daily token-refresh scan failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +204,27 @@ class SchedulerAgent(BaseAgent):
             return PublishResult(success=False, status="failed", failure_reason="Instagram account not found")
 
         account = account_resp.data
+
+        # Decrypt the Fernet-encrypted access token before sending to Meta
         access_token = account.get("access_token", "")
+        try:
+            from app.core.security import decrypt_token
+            access_token = decrypt_token(access_token)
+        except Exception as exc:
+            logger.error(
+                "Failed to decrypt Instagram token for account %s: %s",
+                account.get("id"),
+                exc,
+            )
+            supabase.table("content_posts").update({
+                "status": "failed",
+                "failure_reason": "Invalid encrypted token (refreshing may be needed)",
+            }).eq("id", post_id).execute()
+            return PublishResult(
+                success=False,
+                status="failed",
+                failure_reason="Invalid encrypted token (refreshing may be needed)",
+            )
 
         # Attempt publish with retry
         result = await self._publish_with_retry(
