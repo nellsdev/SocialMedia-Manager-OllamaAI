@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getApi } from "@/lib/api";
 import { StrategyForm } from "@/components/profile/StrategyForm";
+import { ConversationalOnboarding } from "@/components/profile/ConversationalOnboarding";
 
 export default function StrategySettingsPage() {
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
@@ -25,6 +26,22 @@ export default function StrategySettingsPage() {
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Loading...</div>;
+  }
+
+  const hasProfile = profile !== null && Object.keys(profile).length > 0;
+
+  if (!hasProfile) {
+    return (
+      <div className="mx-auto max-w-xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Cuéntanos sobre ti</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Responde unas preguntas para definir tu estrategia de contenido.
+          </p>
+        </div>
+        <ConversationalOnboarding />
+      </div>
+    );
   }
 
   return (

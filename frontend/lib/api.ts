@@ -197,6 +197,20 @@ export class ApiClient {
     );
   }
 
+  // ---- Onboarding / Research ----
+
+  onboardingTurn(data: { history: Array<{ role: string; content: string }>; current_state: string; niche?: string; archetype?: string }) {
+    return this.request<{ question: string }>("POST", "/api/agents/onboarding/turn", data);
+  }
+
+  onboardingFinish(data: { history: Array<{ role: string; content: string }> }) {
+    return this.request<{ profile: Record<string, unknown>; niche_analysis: Record<string, unknown> }>("POST", "/api/agents/onboarding/finish", data);
+  }
+
+  getOnboardingResearch() {
+    return this.request<{ status: string; niche_analysis: Record<string, unknown> }>("GET", "/api/agents/onboarding/research");
+  }
+
   // ---- Scheduling / Publishing ----
 
   schedulePost(postId: string, scheduledFor: string) {
