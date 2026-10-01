@@ -234,8 +234,12 @@ async def onboarding_finish(
     from app.agents.onboarding_agent import OnboardingAgent
     from app.agents.trend_researcher import TrendResearcherAgent
     from app.core.auth_utils import maybe_single_data
+    from app.core.database import get_supabase_service_client
 
     user = _require_user(request, supabase)
+    # Use the service client for persistence: writing the profile row must not
+    # depend on the anon-client RLS INSERT policy (own_profile uses USING only).
+    admin = get_supabase_service_client()
 
     agent = OnboardingAgent()
     try:
@@ -247,9 +251,10 @@ async def onboarding_finish(
         raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
 
     # Persist the profile (upsert by user_id)
+    unique_slug = f"personal_{user['id'][:8]}"
     payload = {
         "name": "Personal",
-        "slug": "personal",
+        "slug": unique_slug,
     }
     for field in ("archetype", "voice_description", "content_pillars", "target_audience", "goals"):
         value = draft.get(field)
@@ -258,15 +263,15 @@ async def onboarding_finish(
     payload["niche"] = draft.get("niche") or ""
 
     existing = maybe_single_data(
-        supabase.table("profiles").select("id").eq("user_id", user["id"])
+        admin.table("profiles").select("id").eq("user_id", user["id"])
     )
     if existing:
         payload.pop("slug", None)
-        supabase.table("profiles").update(payload).eq("id", existing["id"]).execute()
+        admin.table("profiles").update(payload).eq("id", existing["id"]).execute()
         profile_id = existing["id"]
     else:
         payload["user_id"] = user["id"]
-        insert_resp = supabase.table("profiles").insert(payload).execute()
+        insert_resp = admin.table("profiles").insert(payload).execute()
         profile_id = insert_resp.data[0]["id"]
 
     # Run niche research and persist the analysis
@@ -279,7 +284,7 @@ async def onboarding_finish(
             reference_accounts=draft.get("reference_accounts") or [],
         )
         if analysis:
-            supabase.table("profiles").update(
+            admin.table("profiles").update(
                 {"niche_analysis": analysis}
             ).eq("id", profile_id).execute()
     except Exception as exc:
@@ -287,6 +292,6 @@ async def onboarding_finish(
         analysis = {}
 
     profile = maybe_single_data(
-        supabase.table("profiles").select("*").eq("id", profile_id)
+        admin.table("profiles").select("*").eq("id", profile_id)
     ) or {}
     return OnboardingFinishResponse(profile=profile, niche_analysis=analysis)

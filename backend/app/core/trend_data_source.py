@@ -254,7 +254,7 @@ class KnowledgeTrendSource(TrendDataSource):
             ),
         )
         async def _call() -> str:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 payload = {
                     "model": self.MODEL,
                     "prompt": prompt,
