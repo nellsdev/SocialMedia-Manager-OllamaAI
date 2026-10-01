@@ -43,6 +43,8 @@ CREATE TABLE profiles (
     target_audience TEXT,
     goals TEXT,
     visual_references TEXT[],
+    niche TEXT,
+    niche_analysis JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -276,7 +278,13 @@ CREATE POLICY "own_agent_memories" ON agent_memories
     );
 
 -- ----------------------------------------------------------------------------
--- 9. Cleanup: Remove legacy column if exists
+-- 9. Onboarding research columns (idempotent for existing deployments)
+-- ----------------------------------------------------------------------------
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS niche TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS niche_analysis JSONB;
+
+-- ----------------------------------------------------------------------------
+-- 10. Cleanup: Remove legacy column if exists
 -- ----------------------------------------------------------------------------
 ALTER TABLE profiles DROP COLUMN IF EXISTS whatsapp_phone;
 

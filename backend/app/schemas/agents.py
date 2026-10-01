@@ -76,3 +76,28 @@ class PublishResponse(BaseModel):
     platform_post_id: str | None = None
     platform_permalink: str | None = None
     failure_reason: str | None = None
+
+
+class OnboardingTurn(BaseModel):
+    role: str
+    content: str
+
+
+class OnboardingTurnRequest(BaseModel):
+    history: list[OnboardingTurn]
+    current_state: str = Field(..., description="One of the onboarding states")
+    niche: str | None = None
+    archetype: str | None = None
+
+
+class OnboardingTurnResponse(BaseModel):
+    question: str
+
+
+class OnboardingFinishRequest(BaseModel):
+    history: list[OnboardingTurn]
+
+
+class OnboardingFinishResponse(BaseModel):
+    profile: dict
+    niche_analysis: dict

@@ -25,6 +25,10 @@ from app.schemas.agents import (
     FormatResponse,
     WeeklyIdeasResponse,
     WeeklyIdeasItem,
+    OnboardingTurnRequest,
+    OnboardingTurnResponse,
+    OnboardingFinishRequest,
+    OnboardingFinishResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,3 +193,100 @@ async def generate_weekly_ideas(
             parsed.append(WeeklyIdeasItem(title=str(idea)))
 
     return WeeklyIdeasResponse(ideas=parsed)
+
+
+@router.post("/onboarding/turn", response_model=OnboardingTurnResponse)
+@limiter.limit(agent_rate_limit())
+async def onboarding_turn(
+    request: Request,
+    body: OnboardingTurnRequest,
+    supabase: Client = Depends(_get_supabase),
+):
+    """Get the next conversational question for the onboarding flow."""
+    from app.agents.onboarding_agent import OnboardingAgent
+
+    user = _require_user(request, supabase)
+    _ = user  # auth only; profile may not exist yet during onboarding
+
+    agent = OnboardingAgent()
+    try:
+        question = await agent.next_prompt(
+            history=[t.model_dump() for t in body.history],
+            current_state=body.current_state,
+            niche=body.niche,
+            archetype=body.archetype,
+        )
+    except Exception as exc:
+        logger.error("Onboarding turn failed: %s", exc)
+        raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
+
+    return OnboardingTurnResponse(question=question)
+
+
+@router.post("/onboarding/finish", response_model=OnboardingFinishResponse)
+@limiter.limit(agent_rate_limit())
+async def onboarding_finish(
+    request: Request,
+    body: OnboardingFinishRequest,
+    supabase: Client = Depends(_get_supabase),
+):
+    """Extract the profile draft, persist it, and run niche research."""
+    from app.agents.onboarding_agent import OnboardingAgent
+    from app.agents.trend_researcher import TrendResearcherAgent
+    from app.core.auth_utils import maybe_single_data
+
+    user = _require_user(request, supabase)
+
+    agent = OnboardingAgent()
+    try:
+        draft = await agent.extract_profile_draft(
+            [t.model_dump() for t in body.history]
+        )
+    except Exception as exc:
+        logger.error("Onboarding draft extraction failed: %s", exc)
+        raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
+
+    # Persist the profile (upsert by user_id)
+    payload = {
+        "name": "Personal",
+        "slug": "personal",
+    }
+    for field in ("archetype", "voice_description", "content_pillars", "target_audience", "goals"):
+        value = draft.get(field)
+        if value:
+            payload[field] = value
+    payload["niche"] = draft.get("niche") or ""
+
+    existing = maybe_single_data(
+        supabase.table("profiles").select("id").eq("user_id", user["id"])
+    )
+    if existing:
+        payload.pop("slug", None)
+        supabase.table("profiles").update(payload).eq("id", existing["id"]).execute()
+        profile_id = existing["id"]
+    else:
+        payload["user_id"] = user["id"]
+        insert_resp = supabase.table("profiles").insert(payload).execute()
+        profile_id = insert_resp.data[0]["id"]
+
+    # Run niche research and persist the analysis
+    niche = draft.get("niche") or ""
+    analysis: dict = {}
+    researcher = TrendResearcherAgent()
+    try:
+        analysis = await researcher.analyze_niche(
+            niche=niche,
+            reference_accounts=draft.get("reference_accounts") or [],
+        )
+        if analysis:
+            supabase.table("profiles").update(
+                {"niche_analysis": analysis}
+            ).eq("id", profile_id).execute()
+    except Exception as exc:
+        logger.error("Niche research failed for %s: %s", profile_id, exc)
+        analysis = {}
+
+    profile = maybe_single_data(
+        supabase.table("profiles").select("*").eq("id", profile_id)
+    ) or {}
+    return OnboardingFinishResponse(profile=profile, niche_analysis=analysis)
