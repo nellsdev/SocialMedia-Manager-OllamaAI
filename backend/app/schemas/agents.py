@@ -101,3 +101,8 @@ class OnboardingFinishRequest(BaseModel):
 class OnboardingFinishResponse(BaseModel):
     profile: dict
     niche_analysis: dict
+
+
+class ResearchStatusResponse(BaseModel):
+    status: str  # pending / done / failed / unknown
+    niche_analysis: dict

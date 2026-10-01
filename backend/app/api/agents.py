@@ -8,7 +8,7 @@ appropriate agent.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from supabase import Client
 
 from app.agents.orchestrator import Orchestrator, AgentTask
@@ -29,6 +29,7 @@ from app.schemas.agents import (
     OnboardingTurnResponse,
     OnboardingFinishRequest,
     OnboardingFinishResponse,
+    ResearchStatusResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -223,16 +224,57 @@ async def onboarding_turn(
     return OnboardingTurnResponse(question=question)
 
 
+async def _run_niche_research_background(profile_id: str, niche: str, reference_accounts: list[str]) -> None:
+    """Background task: run niche research and persist the analysis.
+
+    Runs after the finish response is sent so the user sees the profile
+    summary immediately while the LLM research works in the background.
+    """
+    from app.agents.trend_researcher import TrendResearcherAgent
+    from app.core.auth_utils import maybe_single_data
+    from app.core.database import get_supabase_service_client
+
+    admin = get_supabase_service_client()
+    # Mark as pending first
+    try:
+        admin.table("profiles").update({"niche_analysis": None}).eq("id", profile_id).execute()
+    except Exception as exc:
+        logger.warning("Could not clear niche_analysis for %s: %s", profile_id, exc)
+
+    try:
+        researcher = TrendResearcherAgent()
+        analysis = await researcher.analyze_niche(
+            niche=niche,
+            reference_accounts=reference_accounts or [],
+        )
+        if not analysis:
+            raise RuntimeError("Research returned no analysis")
+        analysis_with_status = dict(analysis)
+        analysis_with_status["_research_status"] = "done"
+        admin.table("profiles").update(
+            {"niche_analysis": analysis_with_status}
+        ).eq("id", profile_id).execute()
+        logger.info("Niche research completed for %s", profile_id)
+    except Exception as exc:
+        logger.error("Niche research failed for %s: %s", profile_id, exc)
+        try:
+            admin.table("profiles").update(
+                {"niche_analysis": {"_research_status": "failed"}}
+            ).eq("id", profile_id).execute()
+        except Exception:
+            pass
+
+
 @router.post("/onboarding/finish", response_model=OnboardingFinishResponse)
 @limiter.limit(agent_rate_limit())
 async def onboarding_finish(
     request: Request,
     body: OnboardingFinishRequest,
+    background_tasks: BackgroundTasks,
     supabase: Client = Depends(_get_supabase),
 ):
-    """Extract the profile draft, persist it, and run niche research."""
+    """Extract and persist the profile; run niche research in the background."""
     from app.agents.onboarding_agent import OnboardingAgent
-    from app.agents.trend_researcher import TrendResearcherAgent
     from app.core.auth_utils import maybe_single_data
     from app.core.database import get_supabase_service_client
 
@@ -274,24 +316,52 @@ async def onboarding_finish(
         insert_resp = admin.table("profiles").insert(payload).execute()
         profile_id = insert_resp.data[0]["id"]
 
-    # Run niche research and persist the analysis
+    # Kick off research in background; user sees the profile summary now
     niche = draft.get("niche") or ""
-    analysis: dict = {}
-    researcher = TrendResearcherAgent()
-    try:
-        analysis = await researcher.analyze_niche(
-            niche=niche,
-            reference_accounts=draft.get("reference_accounts") or [],
-        )
-        if analysis:
-            admin.table("profiles").update(
-                {"niche_analysis": analysis}
-            ).eq("id", profile_id).execute()
-    except Exception as exc:
-        logger.error("Niche research failed for %s: %s", profile_id, exc)
-        analysis = {}
+    background_tasks.add_task(
+        _run_niche_research_background,
+        profile_id,
+        niche,
+        draft.get("reference_accounts") or [],
+    )
 
     profile = maybe_single_data(
         admin.table("profiles").select("*").eq("id", profile_id)
     ) or {}
-    return OnboardingFinishResponse(profile=profile, niche_analysis=analysis)
+    return OnboardingFinishResponse(
+        profile=profile,
+        niche_analysis={"_research_status": "pending"},
+    )
+
+
+@router.get("/onboarding/research", response_model=ResearchStatusResponse)
+async def get_research_status(
+    request: Request,
+    supabase: Client = Depends(_get_supabase),
+):
+    """Return the current niche-research status for the user's profile.
+
+    The frontend polls this endpoint after onboarding_finish to show the
+    research progress while it runs in the background.
+    """
+    from app.core.auth_utils import maybe_single_data
+    from app.core.database import get_supabase_service_client
+
+    user = _require_user(request, supabase)
+    admin = get_supabase_service_client()
+
+    profile = maybe_single_data(
+        admin.table("profiles").select("niche_analysis, niche").eq("user_id", user["id"])
+    )
+    if not profile:
+        return ResearchStatusResponse(status="unknown", niche_analysis={})
+
+    analysis = profile.get("niche_analysis") or {}
+    status_val = analysis.get("_research_status") if isinstance(analysis, dict) else None
+    if status_val == "done":
+        return ResearchStatusResponse(status="done", niche_analysis=analysis)
+    if status_val == "failed":
+        return ResearchStatusResponse(status="failed", niche_analysis=analysis)
+    if analysis:
+        return ResearchStatusResponse(status="done", niche_analysis=analysis)
+    return ResearchStatusResponse(status="pending", niche_analysis={})
