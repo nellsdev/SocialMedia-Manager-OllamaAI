@@ -394,9 +394,9 @@ class ContentCreatorAgent(BaseAgent):
                 validated_pillar = self._validate_pillar(item.get("pillar", ""))
                 results.append(
                     CaptionSuggestion(
-                        text=item.get("text", ""),
-                        tone=item.get("tone", ""),
-                        length=item.get("length", ""),
+                        text=str(item.get("text", "")),
+                        tone=str(item.get("tone", "") or ""),
+                        length=str(item.get("length", "") or ""),
                         pillar=validated_pillar,
                     )
                 )

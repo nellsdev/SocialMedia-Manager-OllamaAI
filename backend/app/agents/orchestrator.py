@@ -197,10 +197,12 @@ class Orchestrator:
             from app.core.database import get_supabase_service_client
 
             supabase = get_supabase_service_client()
-            resp = supabase.table("profiles").select("*").eq("id", profile_id).maybe_single().execute()
-            if not resp.data:
+            from app.core.auth_utils import maybe_single_data
+            p = maybe_single_data(
+                supabase.table("profiles").select("*").eq("id", profile_id)
+            )
+            if not p:
                 return None
-            p = resp.data
             return ProfileStrategy(
                 profile_id=p["id"],
                 archetype=p.get("archetype", "personal_sharing"),

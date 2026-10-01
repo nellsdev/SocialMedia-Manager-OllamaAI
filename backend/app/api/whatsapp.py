@@ -10,9 +10,10 @@ PII Protection: Phone numbers are hashed (SHA-256) for lookup and encrypted
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from supabase import Client
 
+from app.core.auth_utils import extract_bearer_token
 from app.core.database import get_supabase_client
 from app.core.security import encrypt_phone, hash_phone
 from app.schemas.whatsapp import (
@@ -31,8 +32,8 @@ def _get_supabase() -> Client:
     return get_supabase_client()
 
 
-def _require_user(supabase: Client) -> dict:
-    result = supabase.auth.get_user()
+def _require_user(request: Request, supabase: Client) -> dict:
+    result = supabase.auth.get_user(extract_bearer_token(request))
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -40,14 +41,13 @@ def _require_user(supabase: Client) -> dict:
 
 
 def _require_profile(supabase: Client, user: dict) -> str:
-    resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not resp.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return resp.data["id"]
+    from app.core.auth_utils import require_profile
+    return require_profile(supabase, user["id"])
 
 
 @router.post("/connect", response_model=WhatsAppConnectionResponse)
 async def connect_whatsapp(
+    request: Request,
     body: WhatsAppConnectRequest,
     supabase: Client = Depends(_get_supabase),
 ):
@@ -57,7 +57,7 @@ async def connect_whatsapp(
     Returns Meta opaque IDs for frontend QR generation.
     Real integration requires Meta Business Account verification.
     """
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     phone = body.phone_number.strip()
@@ -105,20 +105,24 @@ async def connect_whatsapp(
 
 @router.get("/status", response_model=WhatsAppConnectionResponse)
 async def whatsapp_status(
+    request: Request,
     supabase: Client = Depends(_get_supabase),
 ):
     """Check WhatsApp connection status (R023).
 
     Returns connection status WITHOUT exposing phone number.
     """
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
-    resp = supabase.table("whatsapp_connections").select(
-        "status, wa_business_account_id, wa_phone_number_id, verified_at"
-    ).eq("profile_id", profile_id).maybe_single().execute()
+    from app.core.auth_utils import maybe_single_data
+    resp = maybe_single_data(
+        supabase.table("whatsapp_connections").select(
+            "status, wa_business_account_id, wa_phone_number_id, verified_at"
+        ).eq("profile_id", profile_id)
+    )
 
-    if not resp.data:
+    if not resp:
         return WhatsAppConnectionResponse(
             connected=False,
             status="pending",
@@ -127,7 +131,7 @@ async def whatsapp_status(
             verified_at=None,
         )
 
-    conn = resp.data
+    conn = resp
     is_verified = conn.get("status") == "verified"
 
     return WhatsAppConnectionResponse(
@@ -156,15 +160,18 @@ async def whatsapp_webhook(
     phone_hash = hash_phone(from_number)
 
     # Find connection by phone hash
-    conn_resp = supabase.table("whatsapp_connections").select(
-        "profile_id, phone_encrypted"
-    ).eq("phone_hash", phone_hash).maybe_single().execute()
+    from app.core.auth_utils import maybe_single_data
+    conn_row = maybe_single_data(
+        supabase.table("whatsapp_connections").select(
+            "profile_id, phone_encrypted"
+        ).eq("phone_hash", phone_hash)
+    )
 
-    if not conn_resp.data:
+    if not conn_row:
         logger.warning("WhatsApp webhook from unknown number (hash=%s...)", phone_hash[:8])
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Number not connected")
 
-    profile_id = conn_resp.data["profile_id"]
+    profile_id = conn_row["profile_id"]
 
     # Create idea (persist FIRST, enrich later)
     idea_data = {
@@ -193,14 +200,18 @@ async def whatsapp_webhook(
 # Legacy endpoint (deprecated)
 @router.get("/legacy/status", response_model=WhatsAppConfigResponse, deprecated=True)
 async def whatsapp_legacy_status(
+    request: Request,
     supabase: Client = Depends(_get_supabase),
 ):
     """Legacy endpoint - returns connected status only."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
-    resp = supabase.table("whatsapp_connections").select("status").eq("profile_id", profile_id).maybe_single().execute()
-    is_connected = resp.data and resp.data.get("status") == "verified"
+    from app.core.auth_utils import maybe_single_data
+    resp = maybe_single_data(
+        supabase.table("whatsapp_connections").select("status").eq("profile_id", profile_id)
+    )
+    is_connected = bool(resp and resp.get("status") == "verified")
 
     return WhatsAppConfigResponse(
         connected=is_connected,

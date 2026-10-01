@@ -43,13 +43,14 @@ _scheduler: AsyncIOScheduler | None = None
 
 
 def _get_scheduler_db_url() -> str:
-    """Build a PostgreSQL URL from the Supabase URL for APScheduler."""
-    url = settings.SUPABASE_URL
-    if url.startswith("http://"):
-        url = url.replace("http://", "postgresql://", 1)
-    elif url.startswith("https://"):
-        url = url.replace("https://", "postgresql://", 1)
-    return url
+    """Return the APScheduler job-store URL.
+
+    Uses ``settings.SCHEDULER_DB_URL`` (default: local SQLite) instead of
+    deriving from ``SUPABASE_URL``. The Supabase dashboard URL is HTTP-only
+    and has no PostgreSQL credentials, so deriving from it produced a broken
+    URL that hung the scheduler on startup.
+    """
+    return settings.SCHEDULER_DB_URL
 
 
 async def reconcile_scheduled_jobs() -> None:
@@ -184,11 +185,12 @@ class SchedulerAgent(BaseAgent):
             return PublishResult(success=False, status="failed", failure_reason=str(exc))
 
         # Fetch the post
-        post_resp = supabase.table("content_posts").select("*").eq("id", post_id).maybe_single().execute()
-        if not post_resp.data:
+        from app.core.auth_utils import maybe_single_data
+        post = maybe_single_data(
+            supabase.table("content_posts").select("*").eq("id", post_id)
+        )
+        if not post:
             return PublishResult(success=False, status="failed", failure_reason="Post not found")
-
-        post = post_resp.data
 
         # Fetch the IG account
         ig_account_id = post.get("ig_account_id")
@@ -199,11 +201,11 @@ class SchedulerAgent(BaseAgent):
             }).eq("id", post_id).execute()
             return PublishResult(success=False, status="failed", failure_reason="No Instagram account linked")
 
-        account_resp = supabase.table("social_accounts").select("*").eq("id", ig_account_id).maybe_single().execute()
-        if not account_resp.data:
+        account = maybe_single_data(
+            supabase.table("social_accounts").select("*").eq("id", ig_account_id)
+        )
+        if not account:
             return PublishResult(success=False, status="failed", failure_reason="Instagram account not found")
-
-        account = account_resp.data
 
         # Decrypt the Fernet-encrypted access token before sending to Meta
         access_token = account.get("access_token", "")

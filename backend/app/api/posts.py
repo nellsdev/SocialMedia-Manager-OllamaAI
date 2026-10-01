@@ -7,10 +7,11 @@ publishing via the SchedulerAgent (R017, R018, 4.1, 4.2, 4.3).
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from supabase import Client
 
 from app.agents.scheduler_agent import SchedulerAgent
+from app.core.auth_utils import extract_bearer_token
 from app.core.database import get_supabase_client
 from app.schemas.agents import ScheduleRequest, ScheduleResponse, PublishResponse
 from app.schemas.posts import PostCreate, PostResponse, PostUpdate
@@ -22,8 +23,8 @@ def _get_supabase() -> Client:
     return get_supabase_client()
 
 
-def _require_user(supabase: Client) -> dict:
-    result = supabase.auth.get_user()
+def _require_user(request: Request, supabase: Client) -> dict:
+    result = supabase.auth.get_user(extract_bearer_token(request))
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -31,20 +32,19 @@ def _require_user(supabase: Client) -> dict:
 
 
 def _require_profile(supabase: Client, user: dict) -> str:
-    resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not resp.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return resp.data["id"]
+    from app.core.auth_utils import require_profile
+    return require_profile(supabase, user["id"])
 
 
 @router.get("", response_model=list[PostResponse])
 async def list_posts(
+    request: Request,
     status_filter: str | None = None,
     format_filter: str | None = None,
     supabase: Client = Depends(_get_supabase),
 ):
     """List posts with optional filters for status and format."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     query = supabase.table("content_posts").select("*").eq("profile_id", profile_id)
@@ -59,9 +59,9 @@ async def list_posts(
 
 
 @router.post("", response_model=PostResponse, status_code=status.HTTP_201_CREATED)
-async def create_post(body: PostCreate, supabase: Client = Depends(_get_supabase)):
+async def create_post(request: Request, body: PostCreate, supabase: Client = Depends(_get_supabase)):
     """Create a new post draft (R011)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     post_data = {
@@ -84,14 +84,17 @@ async def create_post(body: PostCreate, supabase: Client = Depends(_get_supabase
 
 
 @router.put("/{post_id}", response_model=PostResponse)
-async def update_post(post_id: str, body: PostUpdate, supabase: Client = Depends(_get_supabase)):
+async def update_post(request: Request, post_id: str, body: PostUpdate, supabase: Client = Depends(_get_supabase)):
     """Update an existing post (R012)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     # Verify ownership
-    existing = supabase.table("content_posts").select("id").eq("id", post_id).eq("profile_id", profile_id).maybe_single().execute()
-    if not existing.data:
+    from app.core.auth_utils import maybe_single_data
+    existing = maybe_single_data(
+        supabase.table("content_posts").select("id").eq("id", post_id).eq("profile_id", profile_id)
+    )
+    if not existing:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
 
     update_data = {}
@@ -117,6 +120,7 @@ async def update_post(post_id: str, body: PostUpdate, supabase: Client = Depends
 
 @router.post("/{post_id}/schedule", response_model=ScheduleResponse)
 async def schedule_post(
+    request: Request,
     post_id: str,
     body: ScheduleRequest,
     supabase: Client = Depends(_get_supabase),
@@ -126,7 +130,7 @@ async def schedule_post(
     Accepts an ISO 8601 datetime string. Validates that the timestamp is
     in the future. Registers an APScheduler job via SchedulerAgent.
     """
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     # Verify post ownership and current status
@@ -192,6 +196,7 @@ async def schedule_post(
 
 @router.post("/{post_id}/publish", response_model=PublishResponse)
 async def publish_post_now(
+    request: Request,
     post_id: str,
     supabase: Client = Depends(_get_supabase),
 ):
@@ -200,7 +205,7 @@ async def publish_post_now(
     Uses SchedulerAgent.publish_post which retries on failure with
     exponential back-off (max 3 retries). Updates post status accordingly.
     """
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     # Verify post ownership
@@ -236,11 +241,12 @@ async def publish_post_now(
 
 @router.post("/{post_id}/retry", response_model=PublishResponse)
 async def retry_publish(
+    request: Request,
     post_id: str,
     supabase: Client = Depends(_get_supabase),
 ):
     """Retry publishing a failed post (4.3 / R018)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     existing = (

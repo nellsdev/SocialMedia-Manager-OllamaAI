@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from supabase import Client
 
 from app.agents.orchestrator import Orchestrator, AgentTask
+from app.core.auth_utils import extract_bearer_token
 from app.core.database import get_supabase_client
 from app.core.rate_limit import get_limiter, agent_rate_limit
 from app.schemas.agents import (
@@ -41,7 +42,7 @@ def _get_supabase() -> Client:
 
 
 def _require_user(request: Request, supabase: Client) -> dict:
-    result = supabase.auth.get_user()
+    result = supabase.auth.get_user(extract_bearer_token(request))
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -54,10 +55,8 @@ limiter = get_limiter()
 
 
 def _require_profile(supabase: Client, user: dict) -> str:
-    resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not resp.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return resp.data["id"]
+    from app.core.auth_utils import require_profile
+    return require_profile(supabase, user["id"])
 
 
 @router.post("/captions", response_model=CaptionResponse)
@@ -88,10 +87,13 @@ async def suggest_captions(
 
     options = result.data or []
     # Ensure CaptionOption objects
+    from dataclasses import asdict
     parsed = []
     for opt in options:
         if isinstance(opt, dict):
             parsed.append(CaptionOption(**opt))
+        elif hasattr(opt, "__dataclass_fields__"):
+            parsed.append(CaptionOption(**{k: v for k, v in asdict(opt).items() if k in CaptionOption.model_fields}))
         else:
             parsed.append(CaptionOption(text=str(opt)))
 

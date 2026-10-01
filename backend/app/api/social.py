@@ -11,9 +11,10 @@ from datetime import datetime, timezone, timedelta
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from supabase import Client
 
+from app.core.auth_utils import extract_bearer_token
 from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.core.security import encrypt_token
@@ -37,8 +38,8 @@ def _get_supabase() -> Client:
     return get_supabase_client()
 
 
-def _require_user(supabase: Client) -> dict:
-    result = supabase.auth.get_user()
+def _require_user(request: Request, supabase: Client) -> dict:
+    result = supabase.auth.get_user(extract_bearer_token(request))
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -62,7 +63,7 @@ async def instagram_connect(body: InstagramConnectRequest):
 
 
 @router.post("/instagram/callback", response_model=InstagramAccountResponse)
-async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = Depends(_get_supabase)):
+async def instagram_callback(request: Request, body: InstagramCallbackRequest, supabase: Client = Depends(_get_supabase)):
     """Handle the Instagram OAuth callback.
 
     Exchanges the authorization code for a long-lived access token, retrieves
@@ -81,13 +82,16 @@ async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = 
             detail="State parameter expired",
         )
 
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
 
     # 1. Get profile for this user
-    profile_resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not profile_resp.data:
+    from app.core.auth_utils import maybe_single_data
+    profile_row = maybe_single_data(
+        supabase.table("profiles").select("id").eq("user_id", user["id"])
+    )
+    if not profile_row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    profile_id = profile_resp.data["id"]
+    profile_id = profile_row["id"]
 
     # 2. Exchange code for short-lived token
     async with httpx.AsyncClient() as client:
@@ -178,10 +182,12 @@ async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = 
     }
 
     # Check if account already exists
-    existing = supabase.table("social_accounts").select("id").eq("profile_id", profile_id).eq("platform", "instagram").maybe_single().execute()
-    if existing.data:
-        supabase.table("social_accounts").update(account_data).eq("id", existing.data["id"]).execute()
-        account_id = existing.data["id"]
+    existing = maybe_single_data(
+        supabase.table("social_accounts").select("id").eq("profile_id", profile_id).eq("platform", "instagram")
+    )
+    if existing:
+        supabase.table("social_accounts").update(account_data).eq("id", existing["id"]).execute()
+        account_id = existing["id"]
     else:
         account_data["id"] = str(uuid.uuid4())
         supabase.table("social_accounts").insert(account_data).execute()
@@ -193,19 +199,24 @@ async def instagram_callback(body: InstagramCallbackRequest, supabase: Client = 
 
 
 @router.get("/instagram/status", response_model=InstagramStatusResponse)
-async def instagram_status(supabase: Client = Depends(_get_supabase)):
+async def instagram_status(request: Request, supabase: Client = Depends(_get_supabase)):
     """Return Instagram connection status for the current user."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
 
-    profile_resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not profile_resp.data:
+    from app.core.auth_utils import maybe_single_data
+    profile_row = maybe_single_data(
+        supabase.table("profiles").select("id").eq("user_id", user["id"])
+    )
+    if not profile_row:
         return InstagramStatusResponse(connected=False)
 
-    account_resp = supabase.table("social_accounts").select("*").eq("profile_id", profile_resp.data["id"]).eq("platform", "instagram").maybe_single().execute()
-    if not account_resp.data:
+    account_row = maybe_single_data(
+        supabase.table("social_accounts").select("*").eq("profile_id", profile_row["id"]).eq("platform", "instagram")
+    )
+    if not account_row:
         return InstagramStatusResponse(connected=False)
 
     return InstagramStatusResponse(
         connected=True,
-        account=InstagramAccountResponse(**account_resp.data),
+        account=InstagramAccountResponse(**account_row),
     )

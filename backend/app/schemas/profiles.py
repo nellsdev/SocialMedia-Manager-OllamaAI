@@ -23,6 +23,8 @@ class ProfileResponse(BaseModel):
 
 
 class StrategyUpdate(BaseModel):
+    name: str | None = None
+    slug: str | None = None
     archetype: str | None = None
     voice_description: str | None = None
     content_pillars: list[str] | None = Field(None, max_length=5)

@@ -8,9 +8,10 @@ In DEBUG mode, returns deterministic mock data when Supabase is unavailable.
 import logging
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from supabase import Client
 
+from app.core.auth_utils import extract_bearer_token
 from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.schemas.dashboard import KpiResponse, TimeSeriesPoint, TimeSeriesResponse
@@ -26,8 +27,8 @@ def _get_supabase() -> Client:
     return get_supabase_client()
 
 
-def _require_user(supabase: Client) -> dict:
-    result = supabase.auth.get_user()
+def _require_user(request: Request, supabase: Client) -> dict:
+    result = supabase.auth.get_user(extract_bearer_token(request))
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -35,10 +36,8 @@ def _require_user(supabase: Client) -> dict:
 
 
 def _require_profile(supabase: Client, user: dict) -> str:
-    resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not resp.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return resp.data["id"]
+    from app.core.auth_utils import require_profile
+    return require_profile(supabase, user["id"])
 
 
 def _get_account_ids(supabase: Client, profile_id: str) -> list[str]:
@@ -111,11 +110,11 @@ def _mock_timeseries(metric: str, days: int) -> list[TimeSeriesPoint]:
 
 
 @router.get("/kpis", response_model=KpiResponse)
-async def get_kpis(supabase: Client = Depends(_get_supabase)):
+async def get_kpis(request: Request, supabase: Client = Depends(_get_supabase)):
     """Return current KPIs with deltas (R020)."""
     try:
         try:
-            user = _require_user(supabase)
+            user = _require_user(request, supabase)
             profile_id = _require_profile(supabase, user)
             account_ids = _get_account_ids(supabase, profile_id)
         except HTTPException:
@@ -211,6 +210,7 @@ async def get_kpis(supabase: Client = Depends(_get_supabase)):
 
 @router.get("/timeseries", response_model=TimeSeriesResponse)
 async def get_timeseries(
+    request: Request,
     metric: str = Query("followers", description="Metric name"),
     days: int = Query(30, ge=1, le=90, description="Number of days"),
     supabase: Client = Depends(_get_supabase),
@@ -221,7 +221,7 @@ async def get_timeseries(
 
     try:
         try:
-            user = _require_user(supabase)
+            user = _require_user(request, supabase)
             profile_id = _require_profile(supabase, user)
             account_ids = _get_account_ids(supabase, profile_id)
         except HTTPException:

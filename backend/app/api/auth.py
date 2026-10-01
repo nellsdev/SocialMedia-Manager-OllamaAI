@@ -5,9 +5,10 @@ All routes rely on Supabase Auth for credential handling and JWT issuance.
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from supabase import Client
 
+from app.core.auth_utils import extract_bearer_token
 from app.core.database import get_supabase_client
 from app.schemas.auth import (
     LoginRequest,
@@ -75,14 +76,15 @@ async def login(body: LoginRequest, supabase: Client = Depends(_get_supabase)):
 
 
 @router.get("/session", response_model=SessionResponse)
-async def get_session(supabase: Client = Depends(_get_supabase)):
+async def get_session(request: Request, supabase: Client = Depends(_get_supabase)):
     """Verify the current session and return user + profile data.
 
-    Requires Bearer token in Authorization header (handled by supabase-py).
-    The frontend sends the token; supabase-py validates it via the anon key.
+    Requires a Bearer token in the Authorization header. The token is
+    extracted from the request and passed explicitly to supabase-py,
+    which validates it via the anon key.
     """
     try:
-        result = supabase.auth.get_user()
+        result = supabase.auth.get_user(extract_bearer_token(request))
         user = result.user
         if not user:
             raise HTTPException(
@@ -90,8 +92,10 @@ async def get_session(supabase: Client = Depends(_get_supabase)):
                 detail="No valid session",
             )
         # Attempt to fetch the profile
-        profile_resp = supabase.table("profiles").select("*").eq("user_id", user.id).maybe_single().execute()
-        profile_data = profile_resp.data if profile_resp.data else None
+        from app.core.auth_utils import maybe_single_data
+        profile_data = maybe_single_data(
+            supabase.table("profiles").select("*").eq("user_id", user.id)
+        )
 
         return SessionResponse(
             user={"id": user.id, "email": user.email},

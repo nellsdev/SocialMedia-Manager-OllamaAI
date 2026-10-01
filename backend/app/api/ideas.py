@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from supabase import Client
 
 from app.agents.idea_bank import IdeaBankAgent
+from app.core.auth_utils import extract_bearer_token
 from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.schemas.ideas import IdeaConvertResponse, IdeaCreate, IdeaResponse
@@ -26,8 +27,8 @@ def _get_supabase() -> Client:
     return get_supabase_client()
 
 
-def _require_user(supabase: Client) -> dict:
-    result = supabase.auth.get_user()
+def _require_user(request: Request, supabase: Client) -> dict:
+    result = supabase.auth.get_user(extract_bearer_token(request))
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -36,21 +37,20 @@ def _require_user(supabase: Client) -> dict:
 
 def _require_profile(supabase: Client, user: dict) -> str:
     """Get profile_id for the current user."""
-    resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not resp.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return resp.data["id"]
+    from app.core.auth_utils import require_profile
+    return require_profile(supabase, user["id"])
 
 
 @router.get("", response_model=list[IdeaResponse])
 async def list_ideas(
+    request: Request,
     pillar: str | None = Query(None),
     status: str | None = Query(None),
     source: str | None = Query(None),
     supabase: Client = Depends(_get_supabase),
 ):
     """List ideas with optional filters for pillar, status, and source (R005, R007)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     query = supabase.table("content_ideas").select("*").eq("profile_id", profile_id)
@@ -67,9 +67,9 @@ async def list_ideas(
 
 
 @router.post("", response_model=IdeaResponse, status_code=status.HTTP_201_CREATED)
-async def create_idea(body: IdeaCreate, supabase: Client = Depends(_get_supabase)):
+async def create_idea(request: Request, body: IdeaCreate, supabase: Client = Depends(_get_supabase)):
     """Create a new content idea (R005)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     idea_data = {
@@ -90,21 +90,22 @@ async def create_idea(body: IdeaCreate, supabase: Client = Depends(_get_supabase
 
 
 @router.put("/{idea_id}/convert", response_model=IdeaConvertResponse)
-async def convert_idea(idea_id: str, supabase: Client = Depends(_get_supabase)):
+async def convert_idea(request: Request, idea_id: str, supabase: Client = Depends(_get_supabase)):
     """Convert an idea into a draft post (R007, R010).
 
     Creates a new content_post prefilled with the idea's data, marks the idea
     as converted, and links them.
     """
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     # Fetch the idea
-    idea_resp = supabase.table("content_ideas").select("*").eq("id", idea_id).eq("profile_id", profile_id).maybe_single().execute()
-    if not idea_resp.data:
+    from app.core.auth_utils import maybe_single_data
+    idea = maybe_single_data(
+        supabase.table("content_ideas").select("*").eq("id", idea_id).eq("profile_id", profile_id)
+    )
+    if not idea:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Idea not found")
-
-    idea = idea_resp.data
     if idea["status"] == "converted":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Idea already converted")
 
@@ -172,8 +173,10 @@ async def whatsapp_webhook(
     profile_id = profile_resp.data[0]["id"]
 
     # Load profile strategy for the agent
-    profile_full = supabase.table("profiles").select("*").eq("id", profile_id).maybe_single().execute()
-    profile_data = profile_full.data or {}
+    from app.core.auth_utils import maybe_single_data
+    profile_data = maybe_single_data(
+        supabase.table("profiles").select("*").eq("id", profile_id)
+    ) or {}
 
     from app.agents.base import ProfileStrategy
 

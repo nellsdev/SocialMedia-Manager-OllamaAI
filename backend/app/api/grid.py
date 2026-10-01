@@ -7,9 +7,10 @@ distribution breakdowns for the sidebar analytics.
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from supabase import Client
 
+from app.core.auth_utils import extract_bearer_token
 from app.core.database import get_supabase_client
 from app.schemas.grid import (
     FormatBreakdown,
@@ -27,8 +28,8 @@ def _get_supabase() -> Client:
     return get_supabase_client()
 
 
-def _require_user(supabase: Client) -> dict:
-    result = supabase.auth.get_user()
+def _require_user(request: Request, supabase: Client) -> dict:
+    result = supabase.auth.get_user(extract_bearer_token(request))
     user = result.user
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -36,20 +37,19 @@ def _require_user(supabase: Client) -> dict:
 
 
 def _require_profile(supabase: Client, user: dict) -> str:
-    resp = supabase.table("profiles").select("id").eq("user_id", user["id"]).maybe_single().execute()
-    if not resp.data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-    return resp.data["id"]
+    from app.core.auth_utils import require_profile
+    return require_profile(supabase, user["id"])
 
 
 @router.get("", response_model=GridResponse)
 async def get_grid(
+    request: Request,
     year: int = Query(default_factory=lambda: date.today().year),
     month: int = Query(default_factory=lambda: date.today().month),
     supabase: Client = Depends(_get_supabase),
 ):
     """Return posts grouped by day for the given month (R008)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     # Calculate month bounds
@@ -112,9 +112,9 @@ async def get_grid(
 
 
 @router.get("/distribution", response_model=GridDistributionResponse)
-async def get_distribution(supabase: Client = Depends(_get_supabase)):
+async def get_distribution(request: Request, supabase: Client = Depends(_get_supabase)):
     """Return pillar and format distribution analysis (R009)."""
-    user = _require_user(supabase)
+    user = _require_user(request, supabase)
     profile_id = _require_profile(supabase, user)
 
     resp = supabase.table("content_posts").select("*").eq("profile_id", profile_id).execute()
@@ -135,11 +135,14 @@ async def get_distribution(supabase: Client = Depends(_get_supabase)):
         format_counts[p.get("format", "unknown")] += 1
 
     # Pillars: look at the profile's defined pillars
-    profile_resp = supabase.table("profiles").select("content_pillars").eq("id", profile_id).maybe_single().execute()
-    if profile_resp.data and profile_resp.data.get("content_pillars"):
+    from app.core.auth_utils import maybe_single_data
+    profile_row = maybe_single_data(
+        supabase.table("profiles").select("content_pillars").eq("id", profile_id)
+    )
+    if profile_row and profile_row.get("content_pillars"):
         # Distribute posts across pillars evenly for now (real logic links
         # posts to pillars via the idea they came from)
-        pillars = profile_resp.data["content_pillars"]
+        pillars = profile_row["content_pillars"]
         count_per = max(1, total // len(pillars))
         for p in pillars:
             pillar_counts[p] = count_per
