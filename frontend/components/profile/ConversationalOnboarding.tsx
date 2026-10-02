@@ -230,14 +230,14 @@ export function ConversationalOnboarding() {
   const renderSummary = (readOnly: boolean) => (
     <div className="space-y-4 rounded-xl border border-border bg-card p-4">
       <div>
-        <label className="block text-sm font-medium text-foreground">
+        <label className="block text-[0.95rem] font-semibold text-foreground">
           Arquetipo
         </label>
         <select
           value={archetype}
           onChange={(e) => setArchetype(e.target.value)}
           disabled={readOnly}
-          className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
+          className="mt-1 block w-full rounded-md border border-border bg-background px-3.5 py-2.5 text-base shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
         >
           <option value="">Seleccionar...</option>
           {ARCHETYPES.map((a) => (
@@ -249,7 +249,7 @@ export function ConversationalOnboarding() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-foreground">
+        <label className="block text-[0.95rem] font-semibold text-foreground">
           Descripción de voz
         </label>
         <textarea
@@ -257,12 +257,12 @@ export function ConversationalOnboarding() {
           onChange={(e) => setVoice(e.target.value)}
           disabled={readOnly}
           rows={3}
-          className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
+          className="mt-1 block w-full rounded-md border border-border bg-background px-3.5 py-2.5 text-base shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-foreground">
+        <label className="block text-[0.95rem] font-semibold text-foreground">
           Pilares de contenido (separados por coma)
         </label>
         <input
@@ -270,12 +270,12 @@ export function ConversationalOnboarding() {
           value={pillarsCsv}
           onChange={(e) => setPillarsCsv(e.target.value)}
           disabled={readOnly}
-          className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
+          className="mt-1 block w-full rounded-md border border-border bg-background px-3.5 py-2.5 text-base shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-foreground">
+        <label className="block text-[0.95rem] font-semibold text-foreground">
           Audiencia objetivo
         </label>
         <input
@@ -283,12 +283,12 @@ export function ConversationalOnboarding() {
           value={audience}
           onChange={(e) => setAudience(e.target.value)}
           disabled={readOnly}
-          className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
+          className="mt-1 block w-full rounded-md border border-border bg-background px-3.5 py-2.5 text-base shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-foreground">
+        <label className="block text-[0.95rem] font-semibold text-foreground">
           Metas
         </label>
         <input
@@ -296,7 +296,7 @@ export function ConversationalOnboarding() {
           value={goalsText}
           onChange={(e) => setGoalsText(e.target.value)}
           disabled={readOnly}
-          className="mt-1 block w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
+          className="mt-1 block w-full rounded-md border border-border bg-background px-3.5 py-2.5 text-base shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
         />
       </div>
     </div>
@@ -313,21 +313,21 @@ export function ConversationalOnboarding() {
     return (
       <div className="space-y-4">
         {topics.length > 0 && (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-base font-semibold text-foreground">
               Temas en tendencia
             </h3>
-            <ul className="mt-2 space-y-2">
+            <ul className="mt-3 space-y-2">
               {topics.map((t, i) => {
                 const title =
                   asString(t.topic) || asString(t.title) || String(t);
                 const relevance =
                   asString(t.relevance) || asString(t.why_relevant);
                 return (
-                  <li key={i} className="text-sm">
+                  <li key={i} className="text-base">
                     <span className="font-medium text-foreground">{title}</span>
                     {relevance && (
-                      <span className="block text-xs text-muted-foreground">
+                      <span className="block text-sm text-muted-foreground">
                         {relevance}
                       </span>
                     )}
@@ -339,15 +339,15 @@ export function ConversationalOnboarding() {
         )}
 
         {hashtags.length > 0 && (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-base font-semibold text-foreground">
               Hashtags en tendencia
             </h3>
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {hashtags.map((h, i) => (
                 <span
                   key={i}
-                  className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground"
+                  className="rounded-full bg-muted px-3 py-1.5 text-sm text-muted-foreground"
                 >
                   {h.startsWith("#") ? h : `#${h}`}
                 </span>
@@ -357,21 +357,21 @@ export function ConversationalOnboarding() {
         )}
 
         {accounts.length > 0 && (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-base font-semibold text-foreground">
               Cuentas de referencia
             </h3>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {accounts.map((a, i) => (
                 <div
                   key={i}
                   className="rounded-lg border border-border bg-background p-3"
                 >
-                  <p className="text-sm font-medium text-foreground">
+                  <p className="text-base font-medium text-foreground">
                     @{asString(a.username).replace(/^@/, "")}
                   </p>
                   {asString(a.what_works) && (
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {asString(a.what_works)}
                     </p>
                   )}
@@ -382,11 +382,11 @@ export function ConversationalOnboarding() {
         )}
 
         {opportunities.length > 0 && (
-          <div className="rounded-xl border border-border bg-card p-4">
-            <h3 className="text-sm font-semibold text-foreground">
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-base font-semibold text-foreground">
               Oportunidades
             </h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+            <ul className="mt-2 list-disc space-y-1.5 pl-5 text-base text-muted-foreground">
               {opportunities.map((o, i) => (
                 <li key={i}>{o}</li>
               ))}
@@ -395,12 +395,12 @@ export function ConversationalOnboarding() {
         )}
 
         {recommendation && (
-          <div className="rounded-xl border border-primary/40 bg-primary/5 p-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
+          <div className="rounded-xl border border-primary/40 bg-primary/5 p-5">
+            <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
               Recomendación
             </h3>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-base text-muted-foreground">
               {recommendation}
             </p>
           </div>
@@ -532,7 +532,7 @@ export function ConversationalOnboarding() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground">
+        <p className="text-sm font-medium text-muted-foreground">
           Paso {Math.min(currentStateIdx + 1, STATES.length)} de{" "}
           {STATES.length}
         </p>
@@ -555,17 +555,17 @@ export function ConversationalOnboarding() {
         </div>
       )}
 
-      <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <div className="space-y-3 rounded-xl border border-border bg-card p-5">
         {history.map((m, i) =>
           m.role === "user" ? (
             <div key={i} className="flex justify-end">
-              <div className="max-w-[80%] rounded-xl bg-primary px-3 py-2 text-sm text-primary-foreground">
+              <div className="max-w-[85%] rounded-xl bg-primary px-4 py-3 text-base leading-relaxed text-primary-foreground">
                 {m.content}
               </div>
             </div>
           ) : (
             <div key={i} className="flex justify-start">
-              <div className="max-w-[80%] rounded-xl bg-muted px-3 py-2 text-sm text-foreground">
+              <div className="max-w-[85%] rounded-xl bg-muted px-4 py-3 text-base leading-relaxed text-foreground">
                 {m.content}
               </div>
             </div>
@@ -574,14 +574,14 @@ export function ConversationalOnboarding() {
 
         {loading ? (
           <div className="flex justify-start">
-            <div className="rounded-xl bg-muted px-3 py-2">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <div className="rounded-xl bg-muted px-4 py-3">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           </div>
         ) : (
           question && (
             <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-xl bg-muted px-3 py-2 text-sm text-foreground">
+              <div className="max-w-[85%] rounded-xl bg-muted px-4 py-3 text-base leading-relaxed text-foreground">
                 {question}
               </div>
             </div>
@@ -603,7 +603,7 @@ export function ConversationalOnboarding() {
           onChange={(e) => setInput(e.target.value)}
           disabled={loading}
           placeholder="Escribe tu respuesta..."
-          className="block w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
+          className="block w-full rounded-md border border-border bg-background px-4 py-3 text-base shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
         />
         <button
           type="submit"

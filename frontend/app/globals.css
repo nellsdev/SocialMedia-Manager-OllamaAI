@@ -13,12 +13,12 @@
     --secondary: #f1f5f9;
     --secondary-foreground: #1e293b;
     --muted: #f1f5f9;
-    --muted-foreground: #64748b;
+    --muted-foreground: #475569; /* darker slate-600: accessible contrast on white */
     --accent: #f1f5f9;
     --accent-foreground: #1e293b;
-    --border: #e2e8f0;
+    --border: #cbd5e1; /* slightly stronger border for visibility */
     --ring: #8b5cf6;
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -31,10 +31,10 @@
     --secondary: #1e293b;
     --secondary-foreground: #f8fafc;
     --muted: #1e293b;
-    --muted-foreground: #94a3b8;
+    --muted-foreground: #b6c2d2; /* lighter muted in dark mode */
     --accent: #1e293b;
     --accent-foreground: #f8fafc;
-    --border: #334155;
+    --border: #475569;
     --ring: #a78bfa;
   }
 }
@@ -43,7 +43,15 @@
   * {
     @apply border-border;
   }
+  html {
+    /* Scale the whole UI up: 17px base instead of 16px.
+       Everything in rem (text + spacing) grows together. */
+    font-size: 17px;
+  }
   body {
     @apply bg-background text-foreground;
+    font-size: 1rem; /* 17px */
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
   }
 }
