@@ -74,6 +74,38 @@ export class ApiClient {
     return res.json() as Promise<T>;
   }
 
+  private async upload<T>(path: string, form: FormData): Promise<T> {
+    const url = `${this.baseUrl}${path}`;
+    // Do NOT set Content-Type manually: the browser must generate the
+    // multipart boundary. Only the Authorization header is attached.
+    const h: Record<string, string> = {};
+    const token = await this.getSessionToken();
+    if (token) {
+      h["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: h,
+      body: form,
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+      const error = new ApiError(res.status, errorData.detail || "Unknown error", path);
+
+      if (res.status === 401 && typeof window !== "undefined") {
+        localStorage.removeItem("session_token");
+        document.cookie = "session_token=; path=/; max-age=0";
+        window.location.href = "/login";
+      }
+
+      throw error;
+    }
+
+    return res.json() as Promise<T>;
+  }
+
   // ---- Auth ----
 
   register(email: string, password: string) {
@@ -209,6 +241,27 @@ export class ApiClient {
 
   getOnboardingResearch() {
     return this.request<{ status: string; niche_analysis: Record<string, unknown> }>("GET", "/api/agents/onboarding/research");
+  }
+
+  // ---- Onboarding visual refs + starter kit ----
+
+  onboardingVisualRef(file: File) {
+    const form = new FormData();
+    form.append("file", file);
+    return this.upload<{
+      url: string;
+      dominant_colors: Array<{ hex: string; name: string }>;
+      mood_hints: string[];
+      style_hint: string;
+    }>("/api/agents/onboarding/visual-ref", form);
+  }
+
+  generateStarterKit(data: { niche?: string; niche_analysis?: Record<string, unknown> }) {
+    return this.request<{ brand_starter: Record<string, unknown> }>(
+      "POST",
+      "/api/agents/onboarding/starter-kit",
+      data
+    );
   }
 
   // ---- Scheduling / Publishing ----

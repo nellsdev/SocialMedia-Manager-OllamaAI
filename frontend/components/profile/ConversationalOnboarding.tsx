@@ -5,10 +5,16 @@ import { getApi } from "@/lib/api";
 import {
   AlertCircle,
   ArrowRight,
+  Camera,
   CheckCircle2,
+  Film,
+  ImagePlus,
   Loader2,
+  Palette,
+  Rocket,
   Search,
   Send,
+  Sparkles,
 } from "lucide-react";
 
 const STATES = [
@@ -17,6 +23,7 @@ const STATES = [
   "content_review",
   "audience",
   "references",
+  "aesthetic",
   "goals",
 ];
 
@@ -60,6 +67,21 @@ function asRecordArray(value: unknown): Array<Record<string, unknown>> {
   );
 }
 
+function asColorStrings(value: unknown): string[] {
+  // Colors may arrive as plain strings ("#A1B2C3") or records ({hex, name}).
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((v) => {
+      if (typeof v === "string") return v;
+      if (typeof v === "object" && v !== null) {
+        const rec = v as Record<string, unknown>;
+        if (typeof rec.hex === "string") return rec.hex;
+      }
+      return "";
+    })
+    .filter((c) => c.length > 0);
+}
+
 export function ConversationalOnboarding() {
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [currentStateIdx, setCurrentStateIdx] = useState(0);
@@ -77,6 +99,20 @@ export function ConversationalOnboarding() {
   const [nicheGuess, setNicheGuess] = useState<string>("");
   const [error, setError] = useState("");
 
+  // Aesthetic step: uploaded visual references.
+  const [visualRefs, setVisualRefs] = useState<
+    Array<{ url: string; hexes: string[]; moods: string[] }>
+  >([]);
+  const [refPreviews, setRefPreviews] = useState<string[]>([]);
+  const [refsUploading, setRefsUploading] = useState(false);
+
+  // Starter kit: generated on demand in the "done" phase.
+  const [starter, setStarter] = useState<Record<string, unknown> | null>(
+    null
+  );
+  const [starterLoading, setStarterLoading] = useState(false);
+  const [starterError, setStarterError] = useState("");
+
   // Editable summary fields (client-side only; profile already persisted).
   const [archetype, setArchetype] = useState("");
   const [voice, setVoice] = useState("");
@@ -88,6 +124,7 @@ export function ConversationalOnboarding() {
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pollTriesRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const api = getApi();
 
@@ -225,6 +262,67 @@ export function ConversationalOnboarding() {
     startPolling();
   };
 
+  const handleFilesSelected = async (files: FileList | null) => {
+    if (!files || files.length === 0 || refsUploading) return;
+    const fileArray = Array.from(files);
+    setError("");
+    setRefsUploading(true);
+    // Show local thumbnails while the uploads are in flight (order kept).
+    const previews = fileArray.map((f) => URL.createObjectURL(f));
+    setRefPreviews((prev) => [...prev, ...previews]);
+    try {
+      for (const file of fileArray) {
+        const resp = await api.onboardingVisualRef(file);
+        if (!mountedRef.current) return;
+        setVisualRefs((prev) => [
+          ...prev,
+          {
+            url: resp.url,
+            hexes: (resp.dominant_colors || []).map((c) => c.hex),
+            moods: resp.mood_hints || [],
+          },
+        ]);
+      }
+    } catch (err: unknown) {
+      if (mountedRef.current) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudieron subir las imágenes. Intenta de nuevo."
+        );
+      }
+    } finally {
+      if (mountedRef.current) {
+        setRefsUploading(false);
+        setRefPreviews((prev) => prev.slice(previews.length));
+      }
+      previews.forEach((p) => URL.revokeObjectURL(p));
+    }
+  };
+
+  const handleGenerateStarterKit = async () => {
+    if (starterLoading) return;
+    setStarterError("");
+    setStarterLoading(true);
+    try {
+      const resp = await api.generateStarterKit({
+        niche: nicheGuess || asString(profile?.niche) || undefined,
+        niche_analysis: research ?? undefined,
+      });
+      if (!mountedRef.current) return;
+      setStarter(resp.brand_starter);
+    } catch (err: unknown) {
+      if (!mountedRef.current) return;
+      setStarterError(
+        err instanceof Error
+          ? err.message
+          : "No pudimos generar tu plan de arranque."
+      );
+    } finally {
+      if (mountedRef.current) setStarterLoading(false);
+    }
+  };
+
   // ---------- Render helpers ----------
 
   const renderSummary = (readOnly: boolean) => (
@@ -299,6 +397,52 @@ export function ConversationalOnboarding() {
           className="mt-1 block w-full rounded-md border border-border bg-background px-3.5 py-2.5 text-base shadow-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-70"
         />
       </div>
+
+      {(() => {
+        // Aesthetic fields persisted by the backend: read-only display.
+        const aestheticDesc = asString(profile?.aesthetic_description);
+        const visualStyle = asString(profile?.visual_style);
+        const brandColors = asColorStrings(profile?.brand_colors);
+        if (!aestheticDesc && !visualStyle && brandColors.length === 0) {
+          return null;
+        }
+        return (
+          <div className="rounded-lg border border-border bg-background p-3.5">
+            <p className="text-[0.95rem] font-semibold text-foreground">
+              Estética
+            </p>
+            {aestheticDesc && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {aestheticDesc}
+              </p>
+            )}
+            {visualStyle && (
+              <p className="mt-1 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Estilo visual:
+                </span>{" "}
+                {visualStyle}
+              </p>
+            )}
+            {brandColors.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {brandColors.map((c, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-sm text-muted-foreground"
+                  >
+                    <span
+                      className="h-4 w-4 rounded-full border border-border"
+                      style={{ backgroundColor: c }}
+                    />
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 
@@ -409,6 +553,208 @@ export function ConversationalOnboarding() {
     );
   };
 
+  const renderStarter = () => {
+    if (!starter) return null;
+    const posts = asRecordArray(starter.primeros_posts);
+    const posicionamiento = asString(starter.posicionamiento);
+    const tipsCamara = asStringArray(starter.tips_camara);
+    const tipsEdicion = asStringArray(starter.tips_edicion);
+    const brandBookRaw = starter.brand_book;
+    const brandBook: Record<string, unknown> =
+      typeof brandBookRaw === "object" && brandBookRaw !== null
+        ? (brandBookRaw as Record<string, unknown>)
+        : {};
+    const colores = asColorStrings(brandBook.colores);
+    const tipografias = asStringArray(brandBook.tipografias);
+    const estiloImagen = asString(brandBook.estilo_imagen);
+    const portadas = asString(brandBook.portadas);
+    const tonoVisual = asString(brandBook.tono_visual);
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-4">
+          <Rocket className="h-5 w-5 text-primary" />
+          <p className="text-base font-semibold text-foreground">
+            Tu plan de arranque
+          </p>
+        </div>
+
+        {posicionamiento && (
+          <div className="rounded-xl border border-primary/40 bg-primary/5 p-5">
+            <h3 className="text-base font-semibold text-foreground">
+              Posicionamiento
+            </h3>
+            <p className="mt-2 text-base text-muted-foreground">
+              {posicionamiento}
+            </p>
+          </div>
+        )}
+
+        {posts.length > 0 && (
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="text-base font-semibold text-foreground">
+              Tus primeros posts
+            </h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {posts.map((p, i) => {
+                const dia =
+                  asString(p.dia) ||
+                  (typeof p.dia === "number" ? `Día ${p.dia}` : "");
+                const titulo = asString(p.titulo);
+                const idea = asString(p.idea);
+                const formato = asString(p.formato);
+                const tip = asString(p.tip);
+                return (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-border bg-background p-4"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {dia || `Post ${i + 1}`}
+                      </p>
+                      {formato && (
+                        <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-medium text-muted-foreground">
+                          {formato}
+                        </span>
+                      )}
+                    </div>
+                    {titulo && (
+                      <p className="mt-1.5 text-base font-semibold text-foreground">
+                        {titulo}
+                      </p>
+                    )}
+                    {idea && (
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {idea}
+                      </p>
+                    )}
+                    {tip && (
+                      <p className="mt-2 rounded-md bg-muted px-2.5 py-1.5 text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Tip:
+                        </span>{" "}
+                        {tip}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {(tipsCamara.length > 0 || tipsEdicion.length > 0) && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {tipsCamara.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                  <Camera className="h-4 w-4 text-primary" />
+                  Tips de cámara
+                </h3>
+                <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
+                  {tipsCamara.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {tipsEdicion.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-5">
+                <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                  <Film className="h-4 w-4 text-primary" />
+                  Tips de edición
+                </h3>
+                <ul className="mt-2 list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
+                  {tipsEdicion.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {(colores.length > 0 ||
+          tipografias.length > 0 ||
+          estiloImagen ||
+          portadas ||
+          tonoVisual) && (
+          <div className="rounded-xl border border-border bg-card p-5">
+            <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+              <Palette className="h-5 w-5 text-primary" />
+              Mini brand book
+            </h3>
+            {colores.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm font-medium text-foreground">Colores</p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {colores.map((c, i) => (
+                    <span
+                      key={i}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-sm text-muted-foreground"
+                    >
+                      <span
+                        className="h-4 w-4 rounded-full border border-border"
+                        style={{ backgroundColor: c }}
+                      />
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {tipografias.length > 0 && (
+              <div className="mt-3">
+                <p className="text-sm font-medium text-foreground">
+                  Tipografías
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-2">
+                  {tipografias.map((t, i) => (
+                    <span
+                      key={i}
+                      className="rounded-full bg-muted px-3 py-1.5 text-sm text-muted-foreground"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {(estiloImagen || portadas || tonoVisual) && (
+              <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
+                {estiloImagen && (
+                  <p>
+                    <span className="font-medium text-foreground">
+                      Estilo de imagen:
+                    </span>{" "}
+                    {estiloImagen}
+                  </p>
+                )}
+                {portadas && (
+                  <p>
+                    <span className="font-medium text-foreground">
+                      Portadas:
+                    </span>{" "}
+                    {portadas}
+                  </p>
+                )}
+                {tonoVisual && (
+                  <p>
+                    <span className="font-medium text-foreground">
+                      Tono visual:
+                    </span>{" "}
+                    {tonoVisual}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ---------- Phase renders ----------
 
   if (phase === "finishing") {
@@ -480,6 +826,58 @@ export function ConversationalOnboarding() {
           </p>
         </div>
         {renderResearch()}
+
+        {starter ? (
+          renderStarter()
+        ) : (
+          <div className="space-y-3 rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              <h3 className="text-base font-semibold text-foreground">
+                Plan de arranque
+              </h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Generá un kit inicial con tus primeros posts, posicionamiento,
+              tips de cámara y edición, y un mini brand book. Puede tomar unos
+              minutos.
+            </p>
+            <button
+              type="button"
+              onClick={handleGenerateStarterKit}
+              disabled={starterLoading}
+              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {starterLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generando tu plan...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Generar mi plan de arranque
+                </>
+              )}
+            </button>
+            {starterError && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  {starterError}{" "}
+                  <button
+                    type="button"
+                    onClick={handleGenerateStarterKit}
+                    className="font-medium underline"
+                  >
+                    Reintentar
+                  </button>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => (window.location.href = "/ideas")}
@@ -589,6 +987,106 @@ export function ConversationalOnboarding() {
         )}
         <div ref={scrollRef} />
       </div>
+
+      {STATES[currentStateIdx] === "aesthetic" && (
+        <div className="rounded-xl border-2 border-dashed border-border p-6 text-center">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              void handleFilesSelected(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={refsUploading}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2.5 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            {refsUploading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ImagePlus className="h-4 w-4" />
+            )}
+            Subir imágenes de referencia
+          </button>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Subí imágenes del estilo, paleta o mood que te gusta
+          </p>
+
+          {(refPreviews.length > 0 || visualRefs.length > 0) && (
+            <div className="mt-4 space-y-3 text-left">
+              {refPreviews.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {refPreviews.map((src, i) => (
+                    <div
+                      key={i}
+                      className="relative h-16 w-16 overflow-hidden rounded-lg border border-border"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={src}
+                        alt="Referencia subiendo"
+                        className="h-full w-full object-cover opacity-70"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {visualRefs.map((ref, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-border bg-background p-3"
+                >
+                  {ref.hexes.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {ref.hexes.map((hex, j) => (
+                        <span
+                          key={j}
+                          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
+                        >
+                          <span
+                            className="h-5 w-5 rounded border border-border"
+                            style={{ backgroundColor: hex }}
+                          />
+                          {hex}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {ref.moods.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {ref.moods.map((m, j) => (
+                        <span
+                          key={j}
+                          className="rounded-full bg-muted px-2.5 py-1 text-sm text-muted-foreground"
+                        >
+                          {m}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {visualRefs.length > 0 && (
+                <p className="flex items-center gap-1.5 text-sm font-medium text-green-600 dark:text-green-400">
+                  <CheckCircle2 className="h-4 w-4" />
+                  ¡Listo! Contale al asistente qué estilo buscás
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <form
         onSubmit={(e) => {
