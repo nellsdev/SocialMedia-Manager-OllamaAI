@@ -30,6 +30,8 @@ from app.schemas.agents import (
     OnboardingFinishRequest,
     OnboardingFinishResponse,
     ResearchStatusResponse,
+    StarterKitRequest,
+    StarterKitResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -224,7 +226,9 @@ async def onboarding_turn(
     return OnboardingTurnResponse(question=question)
 
 
-async def _run_niche_research_background(profile_id: str, niche: str, reference_accounts: list[str]) -> None:
+async def _run_niche_research_background(
+    profile_id: str, niche: str, reference_accounts: list[str], language: str = "español"
+) -> None:
     """Background task: run niche research and persist the analysis.
 
     Runs after the finish response is sent so the user sees the profile
@@ -246,6 +250,7 @@ async def _run_niche_research_background(profile_id: str, niche: str, reference_
         analysis = await researcher.analyze_niche(
             niche=niche,
             reference_accounts=reference_accounts or [],
+            language=language,
         )
         if not analysis:
             raise RuntimeError("Research returned no analysis")
@@ -298,11 +303,16 @@ async def onboarding_finish(
         "name": "Personal",
         "slug": unique_slug,
     }
-    for field in ("archetype", "voice_description", "content_pillars", "target_audience", "goals"):
+    for field in (
+        "archetype", "voice_description", "content_pillars", "target_audience",
+        "goals", "aesthetic_description", "visual_style",
+    ):
         value = draft.get(field)
         if value:
             payload[field] = value
     payload["niche"] = draft.get("niche") or ""
+    payload["brand_colors"] = draft.get("brand_colors") or []
+    payload["language"] = draft.get("language") or "español"
 
     existing = maybe_single_data(
         admin.table("profiles").select("id").eq("user_id", user["id"])
@@ -323,6 +333,7 @@ async def onboarding_finish(
         profile_id,
         niche,
         draft.get("reference_accounts") or [],
+        draft.get("language") or "español",
     )
 
     profile = maybe_single_data(
@@ -365,3 +376,111 @@ async def get_research_status(
     if analysis:
         return ResearchStatusResponse(status="done", niche_analysis=analysis)
     return ResearchStatusResponse(status="pending", niche_analysis={})
+
+
+@router.post("/onboarding/starter-kit", response_model=StarterKitResponse)
+@limiter.limit(agent_rate_limit())
+async def generate_starter_kit(
+    request: Request,
+    body: StarterKitRequest,
+    supabase: Client = Depends(_get_supabase),
+):
+    """Generate the brand starter kit (on demand): first posts, positioning,
+    camera tips, editing tips, and a brand book."""
+    from app.core.auth_utils import maybe_single_data
+    from app.core.database import get_supabase_service_client
+
+    user = _require_user(request, supabase)
+    admin = get_supabase_service_client()
+
+    profile = maybe_single_data(
+        admin.table("profiles").select("*").eq("user_id", user["id"])
+    )
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+
+    niche = body.niche or profile.get("niche") or ""
+    analysis = body.niche_analysis or (profile.get("niche_analysis") or {})
+
+    starter = await _build_starter_kit(profile, niche, analysis)
+    if not starter:
+        raise HTTPException(status_code=502, detail="AI service temporarily unavailable. Please try again.")
+
+    # Persist the brand starter
+    try:
+        admin.table("profiles").update({"brand_starter": starter}).eq("id", profile["id"]).execute()
+    except Exception as exc:
+        logger.warning("Failed to persist brand_starter for %s: %s", profile.get("id"), exc)
+
+    return StarterKitResponse(brand_starter=starter)
+
+
+async def _build_starter_kit(profile: dict, niche: str, analysis: dict) -> dict:
+    """Call Ollama to build the starter kit in the user's language."""
+    from app.core.config import settings
+    import httpx
+
+    language = profile.get("language") or "español"
+    refs = analysis.get("reference_accounts", []) if isinstance(analysis, dict) else []
+
+    context_lines = [
+        f"Niche: {niche}",
+        f"Archetype: {profile.get('archetype', '')}",
+        f"Voz: {profile.get('voice_description', '')}",
+        f"Pilares: {', '.join(profile.get('content_pillars') or [])}",
+        f"Audiencia: {profile.get('target_audience', '')}",
+        f"Objetivos: {profile.get('goals', '')}",
+        f"Estética: {profile.get('aesthetic_description', '')}",
+        f"Estilo visual: {profile.get('visual_style', '')}",
+        f"Colores: {', '.join(profile.get('brand_colors') or [])}",
+    ]
+    if isinstance(refs, list) and refs:
+        usernames = [str(r.get('username', '')) for r in refs if isinstance(r, dict)]
+        context_lines.append("Cuentas de referencia: " + ", ".join(u for u in usernames if u))
+
+    prompt = (
+        "Eres un estratega de marca y growth coach especializado en redes sociales. "
+        "Basándote en el perfil de este creador, produce su 'plan de arranque'.\n\n"
+        "Perfil del creador:\n" + "\n".join(context_lines) + "\n\n"
+        'Respondé SOLO con un objeto JSON con estas claves: '
+        '"primeros_posts" (array de 7 objetos {dia, titulo, idea, formato, tip} '
+        'para sus primeros 7 posts), '
+        '"posicionamiento" (string con estrategia de posicionamiento en el nicho), '
+        '"tips_camara" (array de 4-6 strings, tips para perder el miedo a hablar '
+        'a cámara), '
+        '"tips_edicion" (array de 4-6 strings, tips de edición), '
+        '"brand_book" (objeto con {colores (array), tipografias (array), '
+        'estilo_imagen (string), portadas (string), tono_visual (string)}). '
+        f"IMPORTANTE: escribí TODO en {language}. "
+        "Sin markdown, sin explicación."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            resp = await client.post(
+                f"{settings.OLLAMA_BASE_URL}/api/generate",
+                json={"model": "qwen2.5:7b", "prompt": prompt, "stream": False},
+            )
+            resp.raise_for_status()
+            raw = resp.json().get("response", "")
+    except Exception as exc:
+        logger.error("Starter kit generation failed: %s", exc)
+        return {}
+
+    # Parse JSON (strip fences)
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        first_nl = cleaned.find("\n")
+        if first_nl != -1:
+            cleaned = cleaned[first_nl + 1 :]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+    try:
+        import json as _json
+        data = _json.loads(cleaned)
+        if not isinstance(data, dict):
+            return {}
+        return data
+    except Exception as exc:
+        logger.error("Failed to parse starter kit: %s", exc)
+        return {}

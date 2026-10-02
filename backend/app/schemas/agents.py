@@ -106,3 +106,12 @@ class OnboardingFinishResponse(BaseModel):
 class ResearchStatusResponse(BaseModel):
     status: str  # pending / done / failed / unknown
     niche_analysis: dict
+
+
+class StarterKitRequest(BaseModel):
+    niche: str | None = None
+    niche_analysis: dict | None = None
+
+
+class StarterKitResponse(BaseModel):
+    brand_starter: dict

@@ -45,6 +45,11 @@ CREATE TABLE profiles (
     visual_references TEXT[],
     niche TEXT,
     niche_analysis JSONB,
+    language TEXT DEFAULT 'español',
+    aesthetic_description TEXT,
+    brand_colors TEXT[],
+    visual_style TEXT,
+    brand_starter JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -282,6 +287,11 @@ CREATE POLICY "own_agent_memories" ON agent_memories
 -- ----------------------------------------------------------------------------
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS niche TEXT;
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS niche_analysis JSONB;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'español';
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS aesthetic_description TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS brand_colors TEXT[];
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS visual_style TEXT;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS brand_starter JSONB;
 
 -- ----------------------------------------------------------------------------
 -- 10. Cleanup: Remove legacy column if exists

@@ -42,17 +42,23 @@ class TrendResearcherAgent(BaseAgent):
         raw = await self._ollama_generate(prompt)
         return self._parse_topics(raw)
 
-    async def analyze_niche(self, niche: str, reference_accounts: list[str] | None = None) -> dict:
+    async def analyze_niche(
+        self,
+        niche: str,
+        reference_accounts: list[str] | None = None,
+        language: str = "español",
+    ) -> dict:
         """Produce a full strategic niche analysis (dict for JSON persistence).
 
         Delegates to the configured TrendDataSource (knowledge-based for MVP,
         swappable for live Instagram data later via TrendDataSourceFactory).
+        ``language`` is the user's language; all text fields are produced in it.
         """
         from app.core.trend_data_source import TrendDataSourceFactory
 
         source = TrendDataSourceFactory.get()
         analysis = await source.analyze_reference_accounts(
-            niche, reference_accounts or []
+            niche, reference_accounts or [], language=language
         )
         return analysis.to_dict()
 

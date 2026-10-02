@@ -45,6 +45,12 @@ STATES: list[tuple[str, str]] = [
         "o admiras, aunque sea uno o dos.",
     ),
     (
+        "aesthetic",
+        "¿Cómo te imaginás la estética visual de tu perfil? Pensá en colores, "
+        "estilo de imágenes, el mood que querés transmitir (por ejemplo: "
+        "minimalista y neutro, cálido y natural, editorial con contrastes...).",
+    ),
+    (
         "goals",
         "¿Qué querés lograr en los próximos 3 meses? Puede ser seguidores, "
         "lanzar un producto, autoridad, ventas, comunidad... Decime tus metas.",
@@ -108,6 +114,7 @@ class OnboardingAgent:
             "Arquetipos de creador disponibles (elegí el que mejor encaje):\n"
             f"{archetypes}\n\n"
             'Respondé SOLO con un objeto JSON con estas claves: '
+            '"language" (string, el idioma principal de la conversación, ej. "español"), '
             '"niche" (string, el tema central), '
             '"archetype" (string, uno de los id válidos), '
             '"voice_description" (string, cómo habla/publica el creador), '
@@ -116,8 +123,14 @@ class OnboardingAgent:
             '"goals" (string, sus objetivos), '
             '"reference_accounts" (array de strings, cuentas que mencionó o que '
             'encajan), '
-            '"starting_point" (string, "from_zero" o "has_content"). '
-            "Si un dato no se menciona, usá un valor razonable o string vacío. "
+            '"starting_point" (string, "from_zero" o "has_content"), '
+            '"aesthetic_description" (string, cómo quiere que se vea su perfil, '
+            'estilo visual, mood), '
+            '"brand_colors" (array de 2 a 5 strings, la paleta de colores sugerida), '
+            '"visual_style" (string, ej. "minimal", "cálido y natural", '
+            '"editorial oscuro"). '
+            "Todos los strings deben estar EN EL MISMO IDIOMA que la conversación. "
+            "Si un dato no se menciona, deducí un valor razonable o usá string vacío. "
             "Sin markdown, sin explicación."
         )
         raw = await self._ollama_generate(prompt)
@@ -211,7 +224,13 @@ class OnboardingAgent:
             refs = [r.strip() for r in refs.split(",") if r.strip()]
         refs = [str(r) for r in (refs or [])][:10]
 
+        colors = data.get("brand_colors", [])
+        if isinstance(colors, str):
+            colors = [c.strip() for c in colors.split(",") if c.strip()]
+        colors = [str(c) for c in (colors or [])][:5]
+
         return {
+            "language": str(data.get("language", "español")),
             "niche": str(data.get("niche", "")),
             "archetype": archetype,
             "voice_description": str(data.get("voice_description", "")),
@@ -220,11 +239,15 @@ class OnboardingAgent:
             "goals": str(data.get("goals", "")),
             "reference_accounts": refs,
             "starting_point": data.get("starting_point", "from_zero"),
+            "aesthetic_description": str(data.get("aesthetic_description", "")),
+            "brand_colors": colors,
+            "visual_style": str(data.get("visual_style", "")),
         }
 
     @staticmethod
     def _empty_draft() -> dict:
         return {
+            "language": "español",
             "niche": "",
             "archetype": "",
             "voice_description": "",
@@ -233,6 +256,9 @@ class OnboardingAgent:
             "goals": "",
             "reference_accounts": [],
             "starting_point": "from_zero",
+            "aesthetic_description": "",
+            "brand_colors": [],
+            "visual_style": "",
         }
 
     # ------------------------------------------------------------------

@@ -196,6 +196,12 @@ class KnowledgeTrendSource(TrendDataSource):
             '"recommendation" (string, the overall content strategy recommendation). '
             "No markdown, no explanation."
         )
+        parts.append("")
+        parts.append(
+            f"IMPORTANT: The creator's language is {language}. Write EVERY string "
+            "field (topics, hashtags, account analysis, opportunities, "
+            "recommendation) in that language. Do not translate usernames."
+        )
         return "\n".join(parts)
 
     def _parse_niche_analysis(self, raw: str, fallback_niche: str) -> NicheAnalysis:
