@@ -36,8 +36,12 @@ async def get_my_profile(request: Request, supabase: Client = Depends(_get_supab
     """Get the current user's profile."""
     user = _require_user(request, supabase)
     from app.core.auth_utils import maybe_single_data
+    from app.core.database import get_supabase_service_client
     profile = maybe_single_data(
-        supabase.table("profiles").select("*").eq("user_id", user["id"])
+        get_supabase_service_client()
+        .table("profiles")
+        .select("*")
+        .eq("user_id", user["id"])
     )
     if not profile:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")

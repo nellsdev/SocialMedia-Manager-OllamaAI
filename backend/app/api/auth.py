@@ -91,10 +91,16 @@ async def get_session(request: Request, supabase: Client = Depends(_get_supabase
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="No valid session",
             )
-        # Attempt to fetch the profile
+        # Attempt to fetch the profile. The anon supabase-py client does NOT
+        # forward the user's JWT on table queries (only auth.get_user), so RLS
+        # returns nothing; read with the service client instead.
         from app.core.auth_utils import maybe_single_data
+        from app.core.database import get_supabase_service_client
         profile_data = maybe_single_data(
-            supabase.table("profiles").select("*").eq("user_id", user.id)
+            get_supabase_service_client()
+            .table("profiles")
+            .select("*")
+            .eq("user_id", user.id)
         )
 
         return SessionResponse(

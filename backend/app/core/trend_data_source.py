@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -154,10 +155,10 @@ class KnowledgeTrendSource(TrendDataSource):
             return []
 
     async def analyze_reference_accounts(
-        self, niche: str, accounts: list[str]
+        self, niche: str, accounts: list[str], language: str = "español"
     ) -> NicheAnalysis:
         """Full niche analysis: topics, hashtags, reference accounts, gaps."""
-        prompt = self._build_niche_analysis_prompt(niche, accounts)
+        prompt = self._build_niche_analysis_prompt(niche, accounts, language)
         raw = await self._ollama_generate(prompt)
         return self._parse_niche_analysis(raw, niche)
 
@@ -165,7 +166,9 @@ class KnowledgeTrendSource(TrendDataSource):
     # Prompt + parser
     # ------------------------------------------------------------------
 
-    def _build_niche_analysis_prompt(self, niche: str, accounts: list[str]) -> str:
+    def _build_niche_analysis_prompt(
+        self, niche: str, accounts: list[str], language: str = "español"
+    ) -> str:
         parts = [
             f"You are a social media strategist specialized in the niche: {niche}.",
             "",
@@ -205,11 +208,9 @@ class KnowledgeTrendSource(TrendDataSource):
         return "\n".join(parts)
 
     def _parse_niche_analysis(self, raw: str, fallback_niche: str) -> NicheAnalysis:
-        cleaned = self._clean_json(raw)
-        try:
-            data = json.loads(cleaned)
-        except (json.JSONDecodeError, TypeError) as exc:
-            logger.warning("Failed to parse niche analysis: %s", exc)
+        data = self._parse_json(raw)
+        if data is None:
+            logger.warning("Failed to parse niche analysis — raw: %s", raw[:200])
             return NicheAnalysis(niche=fallback_niche)
 
         return NicheAnalysis(
@@ -286,6 +287,25 @@ class KnowledgeTrendSource(TrendDataSource):
             if raw.endswith("```"):
                 raw = raw[:-3].strip()
         return raw
+
+    @classmethod
+    def _parse_json(cls, raw: str):
+        """Parse JSON tolerantly: strip fences, repair single-quoted JSON.
+
+        Some models emit single quotes instead of double quotes; this repairs
+        the common cases (keys and string values) before json.loads.
+        """
+        cleaned = cls._clean_json(raw)
+        try:
+            return json.loads(cleaned)
+        except (json.JSONDecodeError, TypeError):
+            # The model sometimes emits Python-style single-quoted JSON;
+            # ast.literal_eval safely converts those literals to objects.
+            try:
+                import ast
+                return ast.literal_eval(cleaned)
+            except (ValueError, SyntaxError):
+                return None
 
 
 # ---------------------------------------------------------------------------

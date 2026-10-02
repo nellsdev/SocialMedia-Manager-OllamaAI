@@ -380,6 +380,61 @@ async def get_research_status(
     return ResearchStatusResponse(status="pending", niche_analysis={})
 
 
+def _parse_starter_json(raw: str):
+    """Parse the starter-kit JSON tolerantly (fences + single quotes)."""
+    import json as _json
+    import ast as _ast
+
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        first_nl = cleaned.find("\n")
+        if first_nl != -1:
+            cleaned = cleaned[first_nl + 1 :]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3].strip()
+    try:
+        return _json.loads(cleaned)
+    except (ValueError, SyntaxError, TypeError):
+        try:
+            return _ast.literal_eval(cleaned)
+        except (ValueError, SyntaxError):
+            return None
+
+
+def _normalize_starter(data: dict) -> dict:
+    """Map model variants to the canonical keys the frontend expects."""
+    out = dict(data)
+
+    # primeros_posts: canonical {dia, titulo, idea, formato, tip}; the model
+    # sometimes emits fecha/descripcion/imagen_url. Map what we can and keep
+    # the rest.
+    posts = data.get("primeros_posts") or []
+    if isinstance(posts, list):
+        norm_posts = []
+        for p in posts:
+            if not isinstance(p, dict):
+                continue
+            norm_posts.append({
+                "dia": p.get("dia") or p.get("fecha") or "",
+                "titulo": p.get("titulo", ""),
+                "idea": p.get("idea") or p.get("descripcion") or "",
+                "formato": p.get("formato") or p.get("tipo") or "",
+                "tip": p.get("tip") or "",
+            })
+        out["primeros_posts"] = norm_posts
+
+    # brand_book: ensure array fields are arrays (model may send strings)
+    bb = data.get("brand_book") or {}
+    if isinstance(bb, dict):
+        for key in ("colores", "tipografias"):
+            val = bb.get(key)
+            if isinstance(val, str):
+                bb[key] = [v.strip() for v in val.split(",") if v.strip()]
+        out["brand_book"] = bb
+
+    return out
+
+
 @router.post("/onboarding/starter-kit", response_model=StarterKitResponse)
 @limiter.limit(agent_rate_limit())
 async def generate_starter_kit(
@@ -458,7 +513,7 @@ async def _build_starter_kit(profile: dict, niche: str, analysis: dict) -> dict:
     )
 
     try:
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx.AsyncClient(timeout=390.0) as client:
             resp = await client.post(
                 f"{settings.OLLAMA_BASE_URL}/api/generate",
                 json={"model": "qwen2.5:7b", "prompt": prompt, "stream": False},
@@ -469,23 +524,11 @@ async def _build_starter_kit(profile: dict, niche: str, analysis: dict) -> dict:
         logger.error("Starter kit generation failed: %s", exc)
         return {}
 
-    # Parse JSON (strip fences)
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        first_nl = cleaned.find("\n")
-        if first_nl != -1:
-            cleaned = cleaned[first_nl + 1 :]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3].strip()
-    try:
-        import json as _json
-        data = _json.loads(cleaned)
-        if not isinstance(data, dict):
-            return {}
-        return data
-    except Exception as exc:
-        logger.error("Failed to parse starter kit: %s", exc)
+    data = _parse_starter_json(raw)
+    if data is None:
+        logger.error("Failed to parse starter kit — raw head: %s", raw[:200])
         return {}
+    return _normalize_starter(data)
 
 
 @router.post("/onboarding/visual-ref")
