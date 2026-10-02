@@ -8,11 +8,13 @@ appropriate agent.
 
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Request, UploadFile, status
 from supabase import Client
 
 from app.agents.orchestrator import Orchestrator, AgentTask
 from app.core.auth_utils import extract_bearer_token
+from app.core.config import settings
 from app.core.database import get_supabase_client
 from app.core.rate_limit import get_limiter, agent_rate_limit
 from app.schemas.agents import (
@@ -484,3 +486,76 @@ async def _build_starter_kit(profile: dict, niche: str, analysis: dict) -> dict:
     except Exception as exc:
         logger.error("Failed to parse starter kit: %s", exc)
         return {}
+
+
+@router.post("/onboarding/visual-ref")
+async def upload_visual_ref(
+    request: Request,
+    file: UploadFile = File(...),
+    supabase: Client = Depends(_get_supabase),
+):
+    """Upload a visual reference image for the aesthetic step.
+
+    Stores the image in Supabase Storage (bucket 'visual-refs') and appends
+    its public URL to the profile's visual_references. Returns the dominant
+    color palette + mood hints extracted deterministically from the image.
+    """
+    from app.core.auth_utils import maybe_single_data
+    from app.core.database import get_supabase_service_client
+    from app.core.visual_analysis import analyze_image_bytes
+
+    user = _require_user(request, supabase)
+    admin = get_supabase_service_client()
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+
+    # Analyze colors before upload (deterministic, needs the bytes)
+    visual = analyze_image_bytes(data)
+
+    # Upload to Supabase Storage
+    import uuid as _uuid
+    ext = (file.filename or "ref.png").rsplit(".", 1)[-1].lower()
+    if ext not in ("png", "jpg", "jpeg", "webp", "gif"):
+        ext = "png"
+    object_name = f"{user['id']}/{_uuid.uuid4().hex}.{ext}"
+    try:
+        upload_resp = httpx.post(
+            f"{settings.SUPABASE_URL}/storage/v1/object/visual-refs/{object_name}",
+            headers={
+                "apikey": settings.SUPABASE_SERVICE_KEY,
+                "Authorization": f"Bearer {settings.SUPABASE_SERVICE_KEY}",
+                "Content-Type": file.content_type or "application/octet-stream",
+            },
+            content=data,
+            timeout=60,
+        )
+        upload_resp.raise_for_status()
+    except Exception as exc:
+        logger.error("Visual-ref upload failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Upload failed. Please try again.")
+
+    public_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/visual-refs/{object_name}"
+
+    # Persist URL in the profile's visual_references
+    profile = maybe_single_data(
+        admin.table("profiles").select("visual_references").eq("user_id", user["id"])
+    )
+    refs = list(profile.get("visual_references") or []) if profile else []
+    refs.append(public_url)
+    if profile:
+        admin.table("profiles").update({"visual_references": refs}).eq("user_id", user["id"]).execute()
+    else:
+        unique_slug = f"personal_{user['id'][:8]}"
+        admin.table("profiles").insert({
+            "user_id": user["id"], "name": "Personal", "slug": unique_slug,
+            "visual_references": refs,
+        }).execute()
+
+    return {
+        "url": public_url,
+        "dominant_colors": visual.dominant_colors,
+        "mood_hints": visual.mood_hints,
+        "style_hint": visual.style_hint,
+    }
