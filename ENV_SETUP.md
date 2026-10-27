@@ -18,11 +18,19 @@ SUPABASE_SERVICE_KEY=eyJ... (service_role secret key)
 SUPABASE_JWT_SECRET=your-jwt-secret-here
 ```
 
-### Fernet Encryption (generate one, back it up!)
+### Fernet Encryption (generate your own, back it up!)
+
+Generate a fresh key locally — never commit or share it:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
-FERNET_SECRET_KEY=[REDACTED-ROTATED-CREDENTIAL]=
+
+Put the output in your `.env`:
 ```
-**IMPORTANT**: If you lose this key, all encrypted Instagram tokens become permanently unreadable.
+FERNET_SECRET_KEY=<your-generated-key>
+```
+**IMPORTANT**: If you lose this key, all encrypted Instagram tokens become permanently unreadable. Store the backup outside the repository (password manager).
 
 ### WhatsApp Webhook
 ```
